@@ -9,9 +9,11 @@ from app.core.email import send_verification_email
 from app.models.user import User
 from app.schemas.auth import LoginRequest, SignupRequest, ResendVerificationRequest
 from app.schemas.user import Token, UserResponse
+from fastapi.security import HTTPBearer
 
 router = APIRouter()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
+# oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
+oauth2_scheme = HTTPBearer()
 
 @router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def signup(request: SignupRequest, db: Session = Depends(get_db)):

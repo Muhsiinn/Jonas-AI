@@ -25,3 +25,10 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     user_id: Optional[int] = None
+
+
+class UserProfileRequest(BaseModel):
+    user_goal: str
+    user_level_speaking: str
+    user_level_reading: str
+    user_region: str 

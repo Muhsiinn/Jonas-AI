@@ -39,7 +39,7 @@ export default function DashboardPage() {
               <span className="text-white font-[family-name:var(--font-fraunces)] font-bold text-xl">J</span>
             </div>
             <span className="font-[family-name:var(--font-fraunces)] font-bold text-2xl text-foreground">
-              Jonas
+              onas
             </span>
           </Link>
           <Button variant="ghost" size="sm" onClick={logout}>
