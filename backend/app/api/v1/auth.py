@@ -1,6 +1,6 @@
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import verify_password, get_password_hash, create_access_token, generate_verification_token, verify_token
@@ -12,8 +12,7 @@ from app.schemas.user import Token, UserResponse
 from fastapi.security import HTTPBearer
 
 router = APIRouter()
-# oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
-oauth2_scheme = HTTPBearer()
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 @router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def signup(request: SignupRequest, db: Session = Depends(get_db)):
@@ -46,8 +45,37 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
     return UserResponse.model_validate(user)
 
 @router.post("/login", response_model=Token)
-async def login(request: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == request.email).first()
+async def login(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    content_type = request.headers.get("content-type", "").lower()
+    
+    if "application/x-www-form-urlencoded" in content_type:
+        form_data = await request.form()
+        email = form_data.get("username")
+        password = form_data.get("password")
+        if not email or not password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="username and password are required"
+            )
+    elif "application/json" in content_type:
+        body = await request.json()
+        email = body.get("email")
+        password = body.get("password")
+        if not email or not password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email and password are required"
+            )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Content-Type must be application/json or application/x-www-form-urlencoded"
+        )
+    
+    user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -55,7 +83,7 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if not verify_password(request.password, user.hashed_password):
+    if not verify_password(password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid password",
