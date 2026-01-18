@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { useAuth } from "@/contexts/AuthContext";
+import { apiClient } from "@/lib/api";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -15,8 +16,39 @@ export default function LoginPage() {
   const [resendLoading, setResendLoading] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { login, resendVerification } = useAuth();
+  const { login, resendVerification, isAuthenticated, loading: authLoading } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    const checkAuthAndRedirect = async () => {
+      if (!authLoading && isAuthenticated) {
+        try {
+          const profileCheck = await apiClient.checkProfileExists();
+          if (profileCheck.exists) {
+            router.push('/dashboard');
+          } else {
+            router.push('/onboarding');
+          }
+        } catch (error) {
+          console.error('Error checking profile:', error);
+        }
+      }
+    };
+
+    checkAuthAndRedirect();
+  }, [isAuthenticated, authLoading, router]);
+
+  if (authLoading) {
+    return (
+      <div className="w-full flex items-center justify-center py-12">
+        <div className="font-[family-name:var(--font-dm-sans)] text-gray-600">Loading...</div>
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    return null;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

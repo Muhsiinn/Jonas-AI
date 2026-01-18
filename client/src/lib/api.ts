@@ -35,6 +35,26 @@ export interface SignupResponse {
   created_at: string;
 }
 
+export interface UserProfileRequest {
+  user_goal: string;
+  user_level_speaking: string;
+  user_level_reading: string;
+  user_region: string;
+}
+
+export interface UserProfile {
+  id: number;
+  user_id: number;
+  user_goal: string;
+  user_level_speaking: string;
+  user_level_reading: string;
+  user_region: string;
+}
+
+export interface SituationOutput {
+  situation: string;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -128,6 +148,25 @@ class ApiClient {
 
   async logout(): Promise<void> {
     this.removeToken();
+  }
+
+  async checkProfileExists(): Promise<{ exists: boolean }> {
+    return this.request<{ exists: boolean }>('/api/v1/users/profile/exists', {
+      method: 'GET',
+    });
+  }
+
+  async createUserProfile(data: UserProfileRequest): Promise<UserProfile> {
+    return this.request<UserProfile>('/api/v1/users/userprofile', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getDailySituation(): Promise<SituationOutput> {
+    return this.request<SituationOutput>('/api/v1/users/dailysituation', {
+      method: 'GET',
+    });
   }
 }
 

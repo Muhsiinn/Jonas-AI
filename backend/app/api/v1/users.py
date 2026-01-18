@@ -17,6 +17,10 @@ router = APIRouter()
 async def read_users_me(current_user: User = Depends(get_current_user)):
     return UserResponse.model_validate(current_user)
 
+@router.get("/profile/exists")
+async def check_profile_exists(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    return {"exists": profile is not None}
 
 @router.post("/userprofile")
 async def create_user_profile(request: UserProfileRequest,current_user:User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -37,7 +41,7 @@ async def create_user_profile(request: UserProfileRequest,current_user:User = De
 
 
 
-@router.get("/dailysituation")
+@router.get("/dailysituation",response_model=SituationOutput)
 async def get_daily_situation(current_user: User = Depends(get_current_user), db:Session = Depends(get_db)):
     today = date.today()
     start = datetime.combine(today, datetime.min.time())
@@ -45,23 +49,26 @@ async def get_daily_situation(current_user: User = Depends(get_current_user), db
     
     daily_situation = db.query(DailySituation).filter(DailySituation.user_id==current_user.id,DailySituation.created_at>=start,DailySituation.created_at<end).first()
     if daily_situation :
-        return {
+        return SituationOutput.model_validate({
             "situation" : daily_situation.daily_situation
-        }
+        })
     
     if not current_user.profile:
         raise HTTPException (
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No user profile"
         )
+        
     llm = LLMClient("tngtech/tng-r1t-chimera:free")
     llm = llm.get_client()
+    
     yaml_prompts = open_yaml("app/core/prompts.yaml")
     p = yaml_prompts['situation_generate']
     prompt = ChatPromptTemplate.from_messages([
     ("system", p["system"]),
     ("human", p["human"]),
     ])
+
     messages = prompt.invoke({
         "name":current_user.full_name,
         "speaking": current_user.profile.user_level_speaking,
@@ -70,16 +77,24 @@ async def get_daily_situation(current_user: User = Depends(get_current_user), db
         "region":current_user.profile.user_region
     })
 
-    response = await llm.with_structured_output(SituationOutput).ainvoke(messages)
+    try:
+        response = await llm.with_structured_output(SituationOutput).ainvoke(messages)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate daily situation: {e}"
+        )
+
     daily_situation = DailySituation(
         daily_situation = response.situation,
         user_id = current_user.id
     )
+
     db.add(daily_situation)
     db.commit()
     db.refresh(daily_situation)
 
-    return response
+    return SituationOutput.model_validate(response)
     
 
 
