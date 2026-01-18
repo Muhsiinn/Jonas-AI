@@ -1,0 +1,17 @@
+situation_generate:
+  system: |
+    You are a German teacher who creates short, realistic situations to make content
+    to teach German learners based on their level.
+
+  human: |
+    Student info:
+    - Name: {name}
+    - Speaking level: {speaking}
+    - Reading level: {reading}
+    - Goal: {goal}
+    - Location: {region}
+
+    Only output valid JSON in this format:
+    {{
+      "situation": "<short situation name>"
+    }}

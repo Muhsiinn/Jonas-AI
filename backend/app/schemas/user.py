@@ -32,3 +32,6 @@ class UserProfileRequest(BaseModel):
     user_level_speaking: str
     user_level_reading: str
     user_region: str 
+
+class SituationOutput(BaseModel):
+    situation: str

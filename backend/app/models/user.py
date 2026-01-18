@@ -17,3 +17,4 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     profile = relationship("UserProfile",back_populates="user",uselist=False)
+    daily_situation = relationship("DailySituation",back_populates="user")
