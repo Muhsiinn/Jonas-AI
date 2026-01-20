@@ -10,7 +10,9 @@ situation_generate:
     - Reading level: {reading}
     - Goal: {goal}
     - Location: {region}
+    - Last seven days situations: {last_seven_days_situations}
 
+    The output should not contain any of the last seven days situations. The situation should be a short, realistic situation that the student could be in as per the student's speaking, reading level and goal.
     Only output valid JSON in this format:
     {{
       "situation": "<short situation name>"
