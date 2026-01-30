@@ -24,8 +24,14 @@ class AgentOutput(BaseModel):
 
 class QuestionOutput(BaseModel):
     questions : List[Question]
+
+class VocabItem(BaseModel):
+    term: str
+    meaning: str
+    example: str
+
 class Vocabs(BaseModel):
-    terms : List[str]
+    vocab: List[VocabItem]
 
 
 class State(TypedDict):

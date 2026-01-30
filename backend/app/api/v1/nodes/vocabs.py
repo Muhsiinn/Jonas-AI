@@ -11,12 +11,11 @@ from app.core.utils import open_yaml
 from sqlalchemy.orm import Session
 from app.schemas.agents import State
 from app.schemas.agents import Vocabs
-from app.models.lesson import Lesson
 from typing import List
 
 async def make_vocabs(state:State):
     llm = LLMClient()
-    chat = llm.get_client("tngtech/tng-r1t-chimera:free")
+    chat = llm.get_client("nvidia/nemotron-3-nano-30b-a3b:free")
     lesson = " ".join(state['lesson'].paragraphs)
     yaml_prompts = open_yaml("app/core/prompts.yaml")
     p = yaml_prompts['vocab_prompt']
@@ -33,5 +32,5 @@ async def make_vocabs(state:State):
     
     
     return {
-        "vocabs": result.terms
+        "vocabs": result
     }

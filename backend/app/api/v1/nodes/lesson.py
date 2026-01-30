@@ -31,7 +31,7 @@ async def make_lesson(state:State):
     end = start + timedelta(days=1) 
     
     llm = LLMClient()
-    chat = llm.get_client("tngtech/tng-r1t-chimera:free")
+    chat = llm.get_client("nvidia/nemotron-3-nano-30b-a3b:free")
     yaml_prompts = open_yaml("app/core/prompts.yaml")
     user_speaking_level = current_user.profile.user_level_speaking
     user_reading_level = current_user.profile.user_level_reading
