@@ -2,10 +2,12 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import Button from "@/components/ui/Button";
-import Link from "next/link";
+import { useEffect, useState, useMemo } from "react";
 import { apiClient, SituationOutput } from "@/lib/api";
+import { DashboardNavbar } from "@/components/dashboard/DashboardNavbar";
+import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { TodaySituationHeader } from "@/components/dashboard/TodaySituationHeader";
+import { DashboardActions } from "@/components/dashboard/DashboardActions";
 
 export default function DashboardPage() {
   const { user, loading, logout, isAuthenticated } = useAuth();
@@ -14,25 +16,91 @@ export default function DashboardPage() {
   const [dailySituation, setDailySituation] = useState<SituationOutput | null>(null);
   const [loadingSituation, setLoadingSituation] = useState(true);
 
+  const practiceData = useMemo(() => {
+    const data: { date: Date; count: number }[] = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - 89);
+
+    for (let d = new Date(startDate); d <= today; d.setDate(d.getDate() + 1)) {
+      const date = new Date(d);
+      const count = Math.floor(Math.random() * 4);
+      data.push({ date, count });
+    }
+
+    return data;
+  }, []);
+
+  const leagueData = useMemo(() => {
+    const currentUserSessions = 87;
+    const isBronze = currentUserSessions >= 50;
+    const promotionThreshold = 100;
+
+    const allUsers = [
+      { name: "Sarah M.", points: 245 },
+      { name: "Tom K.", points: 218 },
+      { name: "Lisa W.", points: 192 },
+      { name: "Max R.", points: 145 },
+      { name: "Anna L.", points: 132 },
+      { name: "You", points: currentUserSessions, isCurrentUser: true },
+      { name: "Jan P.", points: 68 },
+      { name: "Emma S.", points: 52 },
+      { name: "Lukas T.", points: 45 },
+      { name: "Maria K.", points: 38 },
+      { name: "Paul W.", points: 35 },
+      { name: "Sophie H.", points: 32 },
+    ].sort((a, b) => b.points - a.points);
+
+    const bronzeUsers = allUsers.filter((u) => u.points >= 50);
+    const relegationUsers = allUsers.filter((u) => u.points < 50);
+    const currentUserRank = bronzeUsers.findIndex((u) => u.isCurrentUser) + 1;
+    const topPercent =
+      bronzeUsers.length > 0
+        ? Math.round(((bronzeUsers.length - currentUserRank + 1) / bronzeUsers.length) * 100)
+        : 0;
+
+    const getNextUpdateDate = () => {
+      const now = new Date();
+      const daysUntilMonday = (8 - now.getDay()) % 7 || 7;
+      const nextMonday = new Date(now);
+      nextMonday.setDate(now.getDate() + daysUntilMonday);
+      nextMonday.setHours(0, 0, 0, 0);
+      return nextMonday.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    };
+
+    return {
+      currentLeague: isBronze ? "Bronze" : "None",
+      currentUserRank,
+      currentUserPoints: currentUserSessions,
+      topPercent,
+      isInPromotionZone: currentUserSessions >= promotionThreshold,
+      promotionThreshold,
+      bronzeUsers,
+      relegationUsers,
+      nextUpdateDate: getNextUpdateDate(),
+    };
+  }, []);
+
   useEffect(() => {
     const checkAuthAndProfile = async () => {
       if (!loading && !isAuthenticated) {
         router.push("/login");
         return;
       }
-      
+
       if (!loading && isAuthenticated) {
         try {
           const profileCheck = await apiClient.checkProfileExists();
           if (!profileCheck.exists) {
-            router.push('/onboarding');
+            router.push("/onboarding");
             return;
           }
-          
+
           const situation = await apiClient.getDailySituation();
           setDailySituation(situation);
         } catch (error) {
-          console.error('Error loading dashboard:', error);
+          console.error("Error loading dashboard:", error);
         } finally {
           setCheckingProfile(false);
           setLoadingSituation(false);
@@ -59,109 +127,15 @@ export default function DashboardPage() {
 
   return (
     <div className="h-screen bg-cream flex flex-col overflow-hidden">
-      <nav className="bg-cream/80 backdrop-blur-md border-b border-cream-dark flex-shrink-0">
-        <div className="max-w-7xl mx-auto px-8 md:px-12 lg:px-16 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-              <span className="text-white font-[family-name:var(--font-fraunces)] font-bold text-xl">J</span>
-            </div>
-            <span className="font-[family-name:var(--font-fraunces)] font-bold text-2xl text-foreground">
-              onas
-            </span>
-          </Link>
-          <Button variant="ghost" size="sm" onClick={logout}>
-            Log out
-          </Button>
-        </div>
-      </nav>
+      <DashboardNavbar onLogout={logout} />
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-7xl mx-auto px-8 md:px-12 lg:px-16 py-8">
-          <div className="text-center mb-8">
-            <h1 className="font-[family-name:var(--font-fraunces)] text-3xl md:text-4xl font-bold text-foreground">
-              Today&apos;s Situation: {loadingSituation ? (
-                <span className="text-gray-400">Loading...</span>
-              ) : (
-                <span className="text-primary">{dailySituation?.situation || "No situation available"}</span>
-              )}
-            </h1>
-          </div>
+      <div className="flex-1 flex overflow-hidden">
+        <DashboardSidebar practiceData={practiceData} leagueData={leagueData} />
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
-            <div className="lg:col-span-1 space-y-6">
-              <div className="bg-white rounded-2xl p-6 shadow-sm border-2 border-cream-dark h-64 flex flex-col">
-                <h2 className="font-[family-name:var(--font-fraunces)] text-2xl font-bold text-foreground mb-4">
-                  Daily Streak
-                </h2>
-                <div className="flex-1 flex items-center justify-center">
-                  <p className="font-[family-name:var(--font-dm-sans)] text-gray-500 text-sm">
-                    Coming soon
-                  </p>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl p-6 shadow-sm border-2 border-cream-dark h-64 flex flex-col">
-                <h2 className="font-[family-name:var(--font-fraunces)] text-2xl font-bold text-foreground mb-4">
-                  Leaderboard
-                </h2>
-                <div className="flex-1 flex items-center justify-center">
-                  <p className="font-[family-name:var(--font-dm-sans)] text-gray-500 text-sm">
-                    Coming soon
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="lg:col-span-2">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full">
-                <div className="bg-white rounded-2xl p-6 shadow-sm border-2 border-cream-dark flex flex-col hover:shadow-lg transition-shadow cursor-pointer">
-                  <h2 className="font-[family-name:var(--font-fraunces)] text-xl font-bold text-foreground mb-2">
-                    Read
-                  </h2>
-                  <h2 className="font-[family-name:var(--font-fraunces)] text-xl font-bold text-foreground mb-4">
-                    Lesson
-                  </h2>
-                  <div className="flex-1 flex items-center justify-center">
-                    <p className="font-[family-name:var(--font-dm-sans)] text-gray-500 text-sm text-center">
-                      Coming soon
-                    </p>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-2xl p-6 shadow-sm border-2 border-cream-dark flex flex-col hover:shadow-lg transition-shadow cursor-pointer">
-                  <p className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-600 mb-2">
-                    Talk to German
-                  </p>
-                  <p className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-600 mb-3">
-                    (Real life situations)
-                  </p>
-                  <h2 className="font-[family-name:var(--font-fraunces)] text-xl font-bold text-foreground mb-4">
-                    AI Roleplay
-                  </h2>
-                  <div className="flex-1 flex items-center justify-center">
-                    <p className="font-[family-name:var(--font-dm-sans)] text-gray-500 text-sm text-center">
-                      Coming soon
-                    </p>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-2xl p-6 shadow-sm border-2 border-cream-dark flex flex-col hover:shadow-lg transition-shadow cursor-pointer">
-                  <h2 className="font-[family-name:var(--font-fraunces)] text-xl font-bold text-foreground mb-2">
-                    Write in
-                  </h2>
-                  <h2 className="font-[family-name:var(--font-fraunces)] text-xl font-bold text-foreground mb-4">
-                    German
-                  </h2>
-                  <div className="flex-1 flex items-center justify-center">
-                    <p className="font-[family-name:var(--font-dm-sans)] text-gray-500 text-sm text-center">
-                      Coming soon
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <main className="flex-1 flex flex-col overflow-hidden">
+          <TodaySituationHeader loadingSituation={loadingSituation} dailySituation={dailySituation} />
+          <DashboardActions />
+        </main>
       </div>
     </div>
   );
