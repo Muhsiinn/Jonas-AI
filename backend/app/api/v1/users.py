@@ -4,7 +4,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.schemas.user import UserResponse
 from app.api.v1.auth import get_current_user
-from app.schemas.user import UserProfileRequest ,SituationOutput
+from app.schemas.user import UserProfileRequest ,SituationOutput, UserProfileResponse
 from app.models.user_profile import UserProfile
 from app.models.daily_situation import DailySituation
 from datetime import date, datetime, timedelta
@@ -22,7 +22,7 @@ async def check_profile_exists(current_user: User = Depends(get_current_user), d
     profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
     return {"exists": profile is not None}
 
-@router.post("/userprofile")
+@router.post("/userprofile", response_model=UserProfileResponse)
 async def create_user_profile(request: UserProfileRequest,current_user:User = Depends(get_current_user), db: Session = Depends(get_db)):
     user_profile = UserProfile(
         user_id = current_user.id,
@@ -59,9 +59,9 @@ async def get_daily_situation(current_user: User = Depends(get_current_user), db
             detail="No user profile"
         )
         
-    llm = LLMClient("tngtech/tng-r1t-chimera:free")
-    llm = llm.get_client()
-    
+    llm = LLMClient()
+    llm = llm.get_client("tngtech/tng-r1t-chimera:free")
+
     yaml_prompts = open_yaml("app/core/prompts.yaml")
     p = yaml_prompts['situation_generate']
     prompt = ChatPromptTemplate.from_messages([

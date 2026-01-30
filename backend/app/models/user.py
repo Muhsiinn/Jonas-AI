@@ -18,3 +18,4 @@ class User(Base):
 
     profile = relationship("UserProfile",back_populates="user",uselist=False)
     daily_situation = relationship("DailySituation",back_populates="user")
+    lesson = relationship("Lesson",back_populates="user")

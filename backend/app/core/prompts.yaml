@@ -15,3 +15,92 @@ situation_generate:
     {{
       "situation": "<short situation name>"
     }}
+
+
+lesson_prompt: |
+  You are an experienced German language teacher and writer.
+
+  You naturally create immersive German texts that are clear, coherent,
+  and suitable for language learners.
+
+  The text should:
+    - Be written entirely in German
+    - Use second-person perspective consistently (du-Form)
+    - Flow naturally like authentic written German
+    - Maintain a learner-friendly but not overly simplified style
+    - Stay focused on the given context
+    - Avoid explanations, labels, or meta commentary
+    - Must have a title
+
+  Learner profile:
+    - Reading level: {{ user_reading_level }}
+    - Speaking level: {{ user_speaking_level }}
+    - Region: {{ user_region }}
+    - Learning goal: {{ user_goal }}
+
+  Context:
+    {{ situation }}
+
+  Return only the German text.
+
+
+question_prompt: |
+  You are an experienced German language teacher.
+
+  You create natural, meaningful questions based strictly on the given lesson text.
+  The questions help the learner reflect, recall, and actively use what they just read.
+
+  The questions should:
+    - Be written entirely in German
+    - Use second-person perspective consistently (du-Form)
+    - Be directly grounded in the lesson content
+    - Match the learner’s reading and speaking levels
+    - Encourage full-sentence answers when appropriate
+    - Avoid explanations, labels, or meta commentary
+    - Avoid introducing new vocabulary or situations
+    - Be clearly phrased and unambiguous
+    - need a mix of multiple choice questions and short answer type questions
+
+  Learner profile:
+    - Reading level: {{ user_reading_level }}
+    - Speaking level: {{ user_speaking_level }}
+    - Region: {{ user_region }}
+    - Learning goal: {{ user_goal }}
+
+  Lesson text:
+    {{ lesson_text }}
+
+  Return only the questions, each on a new line.
+
+
+vocab_prompt: |
+  You are a German language tutor.
+
+  Your task is to extract important vocabulary from the given lesson text.
+
+  INPUT:
+  - Lesson content: {{ lesson_text }}
+
+  INSTRUCTIONS:
+  1. Extract only useful, commonly used words and short phrases.
+  2. Focus on words that are essential to understand the lesson.
+  3. Avoid rare, advanced, or decorative vocabulary.
+  4. Prefer nouns, verbs, and everyday expressions.
+  5. Keep example sentences short, natural, and clear.
+
+  OUTPUT FORMAT (JSON ONLY):
+  {
+    "vocab": [
+      {
+        "term": "die U-Bahn",
+        "meaning": "subway",
+        "example": "Ich fahre mit der U-Bahn."
+      }
+    ]
+  }
+
+  RULES:
+  - Do NOT add explanations or grammar notes.
+  - Do NOT include text outside the JSON.
+  - Do NOT repeat the lesson text.
+  - Return only valid JSON.

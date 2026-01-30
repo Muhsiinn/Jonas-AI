@@ -35,3 +35,12 @@ class UserProfileRequest(BaseModel):
 
 class SituationOutput(BaseModel):
     situation: str
+
+class UserProfileResponse(BaseModel):
+    user_goal: str
+    user_level_speaking: str
+    user_level_reading: str
+    user_region: str
+
+    class Config:
+        from_attributes = True
