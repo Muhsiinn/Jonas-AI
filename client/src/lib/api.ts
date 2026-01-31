@@ -55,6 +55,46 @@ export interface SituationOutput {
   situation: string;
 }
 
+export interface VocabItem {
+  term: string;
+  meaning: string;
+  example: string;
+}
+
+export interface LessonOutput {
+  user_id: number | null;
+  title: string;
+  paragraphs: string[];
+}
+
+export interface Question {
+  id: number;
+  type: "mcq" | "short";
+  options: string[] | null;
+  question: string;
+}
+
+export interface AgentOutput {
+  lesson: LessonOutput;
+  questions: Question[];
+  vocabs: VocabItem[];
+}
+
+export interface EvaluateAnswer {
+  question_id: number;
+  answer: string;
+}
+
+export interface EvaluateLessonRequest {
+  answers: EvaluateAnswer[];
+}
+
+export interface EvaluateLessonOutput {
+  score: number;
+  summary: string;
+  focus_areas: string[];
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -166,6 +206,19 @@ class ApiClient {
   async getDailySituation(): Promise<SituationOutput> {
     return this.request<SituationOutput>('/api/v1/users/dailysituation', {
       method: 'GET',
+    });
+  }
+
+  async createLesson(): Promise<AgentOutput> {
+    return this.request<AgentOutput>('/api/v1/agents/create_lesson', {
+      method: 'GET',
+    });
+  }
+
+  async evaluateLesson(data: EvaluateLessonRequest): Promise<EvaluateLessonOutput> {
+    return this.request<EvaluateLessonOutput>('/api/v1/agents/evaluate_lesson', {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
   }
 }

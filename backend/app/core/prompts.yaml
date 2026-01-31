@@ -45,23 +45,18 @@ lesson_prompt: |
 
   Return only the German text.
 
-
 question_prompt: |
   You are an experienced German language teacher.
 
-  You create natural, meaningful questions based strictly on the given lesson text.
+  Create questions based strictly on the given lesson text.
   The questions help the learner reflect, recall, and actively use what they just read.
 
-  The questions should:
-    - Be written entirely in German
-    - Use second-person perspective consistently (du-Form)
-    - Be directly grounded in the lesson content
-    - Match the learner’s reading and speaking levels
-    - Encourage full-sentence answers when appropriate
-    - Avoid explanations, labels, or meta commentary
-    - Avoid introducing new vocabulary or situations
-    - Be clearly phrased and unambiguous
-    - need a mix of multiple choice questions and short answer type questions
+  Requirements:
+    - Written entirely in German (du-Form)
+    - Directly grounded in the lesson content
+    - Match the learner's reading and speaking levels
+    - Mix of multiple choice (mcq) and short answer questions
+    - Each question needs an id (starting from 1), type ("mcq" or "short"), the question text, and options (list for mcq, null for short)
 
   Learner profile:
     - Reading level: {{ user_reading_level }}
@@ -71,9 +66,6 @@ question_prompt: |
 
   Lesson text:
     {{ lesson_text }}
-
-  Return only the questions, each on a new line.
-
 
 vocab_prompt: |
   You are a German language tutor.
@@ -90,19 +82,39 @@ vocab_prompt: |
   4. Prefer nouns, verbs, and everyday expressions.
   5. Keep example sentences short, natural, and clear.
 
-  OUTPUT FORMAT (JSON ONLY):
-  {
-    "vocab": [
-      {
-        "term": "die U-Bahn",
-        "meaning": "subway",
-        "example": "Ich fahre mit der U-Bahn."
-      }
-    ]
-  }
 
-  RULES:
-  - Do NOT add explanations or grammar notes.
-  - Do NOT include text outside the JSON.
-  - Do NOT repeat the lesson text.
-  - Return only valid JSON.
+evaluate_lesson_prompt: |
+  You are an experienced German language teacher evaluating a student's reading comprehension.
+
+  LESSON CONTENT:
+  Article: {{ article }}
+  
+  Vocabulary: {{ vocab }}
+  
+  Questions: {{ questions }}
+
+  STUDENT'S ANSWERS:
+  {{ answers }}
+
+  EVALUATION INSTRUCTIONS:
+  1. For MCQ questions (type: "mcq"):
+     - Check if the student's answer (option index) matches the correct answer based on the article
+     - Set "correct" to true/false
+     - Always include "correct_option_index" with the index of the correct option
+
+  2. For short answer questions (type: "short"):
+     - Evaluate if the answer demonstrates understanding of the article
+     - Be lenient with minor grammar mistakes but strict on content accuracy
+     - Set "correct" to true if the answer captures the key points
+     - If incorrect or incomplete, provide "ideal_answer" in German
+
+  3. Calculate overall score (0-100):
+     - Base score on percentage of correct answers
+     - Deduct points for incomplete short answers even if partially correct
+     - Award bonus points for exceptional short answers with good grammar
+
+  4. Write a brief encouraging summary in German (1-2 sentences)
+
+  5. Identify 1-3 focus areas the student should practice (in German)
+
+  Return only the score, summary and focus areas.

@@ -57,15 +57,5 @@ async def make_lesson(state:State):
     ]
 
     result = await chat.with_structured_output(LessonOutput).ainvoke(messages)
-    
-    lesson = Lesson(
-
-        user_id = current_user.id,
-        title = result.title,
-        paragraphs = result.paragraphs
-    )
-    # db.add(lesson)
-    # db.commit()
-    # db.refresh(lesson)
-    return {
-        "lesson":lesson}
+ 
+    return {"lesson":result}

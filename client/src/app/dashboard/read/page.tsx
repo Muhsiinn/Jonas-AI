@@ -1,17 +1,15 @@
  "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Volume2, CheckCircle2, Minus, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { DashboardNavbar } from "@/components/dashboard/DashboardNavbar";
 import {
-  fetchMockReadLesson,
-  fetchMockReadSessions,
-  ReadLesson,
-  ReadSessionSummary,
-  ReadEvaluation,
-} from "@/lib/readLessonMock";
+  apiClient,
+  AgentOutput,
+  EvaluateLessonOutput,
+} from "@/lib/api";
 
 type ReadStep = "vocab" | "article" | "questions" | "evaluation";
 
@@ -20,20 +18,34 @@ export default function ReadLessonPage() {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
   const [step, setStep] = useState<ReadStep>("vocab");
-  const [lesson] = useState<ReadLesson>(() => fetchMockReadLesson());
-  const [sessions] = useState<ReadSessionSummary[]>(() => fetchMockReadSessions());
-  const [activeSessionId] = useState(sessions[0]?.id ?? null);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [evaluation, setEvaluation] = useState<ReadEvaluation | null>(null);
+  const [lesson, setLesson] = useState<AgentOutput | null>(null);
+  const [lessonLoading, setLessonLoading] = useState(true);
+  const [lessonError, setLessonError] = useState<string | null>(null);
+  const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [evaluation, setEvaluation] = useState<EvaluateLessonOutput | null>(null);
+  const [evaluating, setEvaluating] = useState(false);
   const [activeVocabIndex, setActiveVocabIndex] = useState(0);
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
-  const [readVocab, setReadVocab] = useState<boolean[]>(() => lesson.vocab.map(() => false));
+  const [readVocab, setReadVocab] = useState<boolean[]>([]);
   const [articleFontSize, setArticleFontSize] = useState<"sm" | "md" | "lg">("sm");
   const [articleReadOnce, setArticleReadOnce] = useState(false);
-  const [paragraphHintsOpen, setParagraphHintsOpen] = useState<boolean[]>(() =>
-    lesson.article.paragraphs.map(() => false)
-  );
+  const [paragraphHintsOpen, setParagraphHintsOpen] = useState<boolean[]>([]);
   const [sidebarHidden, setSidebarHidden] = useState(false);
+
+  const fetchLesson = useCallback(async () => {
+    try {
+      setLessonLoading(true);
+      setLessonError(null);
+      const data = await apiClient.createLesson();
+      setLesson(data);
+      setReadVocab(data.vocabs.map(() => false));
+      setParagraphHintsOpen(data.lesson.paragraphs.map(() => false));
+    } catch (err) {
+      setLessonError(err instanceof Error ? err.message : "Failed to load lesson");
+    } finally {
+      setLessonLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!loading) {
@@ -41,15 +53,37 @@ export default function ReadLessonPage() {
         router.push("/login");
       } else {
         setChecking(false);
+        fetchLesson();
       }
     }
-  }, [loading, isAuthenticated, router]);
+  }, [loading, isAuthenticated, router, fetchLesson]);
 
-  if (loading || checking) {
+  if (loading || checking || lessonLoading) {
     return (
       <div className="h-screen bg-cream flex items-center justify-center">
         <div className="text-center">
-          <div className="font-[family-name:var(--font-dm-sans)] text-gray-600">Loading...</div>
+          <div className="font-[family-name:var(--font-dm-sans)] text-gray-600">
+            {lessonLoading ? "Creating your lesson..." : "Loading..."}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (lessonError || !lesson) {
+    return (
+      <div className="h-screen bg-cream flex items-center justify-center">
+        <div className="text-center">
+          <div className="font-[family-name:var(--font-dm-sans)] text-red-600 mb-4">
+            {lessonError || "Failed to load lesson"}
+          </div>
+          <button
+            type="button"
+            className="font-[family-name:var(--font-dm-sans)] text-sm px-4 py-2 rounded-full border border-primary text-white bg-primary"
+            onClick={fetchLesson}
+          >
+            Try Again
+          </button>
         </div>
       </div>
     );
@@ -59,14 +93,25 @@ export default function ReadLessonPage() {
     return null;
   }
 
-  const handleAnswerChange = (questionId: string, value: string) => {
+  const handleAnswerChange = (questionId: number, value: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   };
 
-  const handleSubmitAnswers = () => {
-    const result = lesson.evaluate(lesson.questions, answers);
-    setEvaluation(result);
-    setStep("evaluation");
+  const handleSubmitAnswers = async () => {
+    setEvaluating(true);
+    try {
+      const answersArray = lesson.questions.map((q) => ({
+        question_id: q.id,
+        answer: answers[q.id] ?? "",
+      }));
+      const result = await apiClient.evaluateLesson({ answers: answersArray });
+      setEvaluation(result);
+      setStep("evaluation");
+    } catch (err) {
+      console.error("Failed to evaluate:", err);
+    } finally {
+      setEvaluating(false);
+    }
   };
 
   const activeQuestion = lesson.questions[activeQuestionIndex];
@@ -93,7 +138,7 @@ export default function ReadLessonPage() {
             <div className="p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="font-[family-name:var(--font-fraunces)] text-lg font-bold text-foreground">
-                  Read history
+                  Today&apos;s Lesson
                 </h2>
                 <button
                   type="button"
@@ -105,25 +150,15 @@ export default function ReadLessonPage() {
                 </button>
               </div>
               <div className="space-y-2">
-                {sessions.map((session) => (
-                  <button
-                    key={session.id}
-                    type="button"
-                    className={`w-full text-left rounded-2xl border px-3 py-2 text-xs font-[family-name:var(--font-dm-sans)] ${
-                      session.id === activeSessionId
-                        ? "border-primary bg-primary/10 text-foreground"
-                        : "border-cream-dark bg-white text-gray-600"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span>{session.title}</span>
-                      <span className="text-[10px] text-gray-500">{session.date}</span>
-                    </div>
-                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] bg-cream-dark/20 text-gray-700">
-                      {session.status}
-                    </span>
-                  </button>
-                ))}
+                <div className="w-full text-left rounded-2xl border px-3 py-2 text-xs font-[family-name:var(--font-dm-sans)] border-primary bg-primary/10 text-foreground">
+                  <div className="flex items-center justify-between mb-1">
+                    <span>{lesson.lesson.title}</span>
+                    <span className="text-[10px] text-gray-500">Today</span>
+                  </div>
+                  <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] bg-cream-dark/20 text-gray-700">
+                    In progress
+                  </span>
+                </div>
               </div>
             </div>
           </aside>
@@ -149,7 +184,7 @@ export default function ReadLessonPage() {
                   Read lesson
                 </p>
                 <h1 className="font-[family-name:var(--font-fraunces)] text-lg font-bold text-foreground">
-                  {lesson.article.title}
+                  {lesson.lesson.title}
                 </h1>
               </div>
               <div className="flex items-center gap-2">
@@ -187,20 +222,20 @@ export default function ReadLessonPage() {
                   <div className="bg-white rounded-2xl border-2 border-cream-dark px-6 py-4 flex items-center justify-between">
                     <div>
                       <p className="font-[family-name:var(--font-fraunces)] text-base font-bold text-foreground">
-                        {lesson.vocab[activeVocabIndex].term}
+                        {lesson.vocabs[activeVocabIndex].term}
                       </p>
                       <p className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-600">
-                        {lesson.vocab[activeVocabIndex].meaning}
+                        {lesson.vocabs[activeVocabIndex].meaning}
                       </p>
-                      {lesson.vocab[activeVocabIndex].example && (
+                      {lesson.vocabs[activeVocabIndex].example && (
                         <p className="font-[family-name:var(--font-dm-sans)] text-[11px] text-gray-500 mt-1">
-                          {lesson.vocab[activeVocabIndex].example}
+                          {lesson.vocabs[activeVocabIndex].example}
                         </p>
                       )}
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="font-[family-name:var(--font-dm-sans)] text-[11px] text-gray-500">
-                        Word {activeVocabIndex + 1} / {lesson.vocab.length}
+                        Word {activeVocabIndex + 1} / {lesson.vocabs.length}
                       </span>
                       <button
                         type="button"
@@ -212,7 +247,7 @@ export default function ReadLessonPage() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                    {lesson.vocab.map((item, index) => {
+                    {lesson.vocabs.map((item, index) => {
                       const isActive = index === activeVocabIndex;
                       const isRead = readVocab[index];
                       return (
@@ -301,7 +336,7 @@ export default function ReadLessonPage() {
                   </div>
 
                   <div className="bg-white rounded-2xl border-2 border-cream-dark px-6 py-5 leading-relaxed space-y-4">
-                    {lesson.article.paragraphs.map((p, idx) => (
+                    {lesson.lesson.paragraphs.map((p, idx) => (
                       <div key={idx} className="space-y-1">
                         <div className="flex items-start gap-3">
                           <p
@@ -316,26 +351,6 @@ export default function ReadLessonPage() {
                             <Volume2 className="w-4 h-4" />
                           </button>
                         </div>
-                        <div className="flex items-center justify-between ml-2">
-                          <button
-                            type="button"
-                            className="text-[11px] font-[family-name:var(--font-dm-sans)] text-primary"
-                            onClick={() =>
-                              setParagraphHintsOpen((prev) => {
-                                const next = [...prev];
-                                next[idx] = !next[idx];
-                                return next;
-                              })
-                            }
-                          >
-                            {paragraphHintsOpen[idx] ? "Hide hint" : "Show hint"}
-                          </button>
-                        </div>
-                        {paragraphHintsOpen[idx] && (
-                          <p className="font-[family-name:var(--font-dm-sans)] text-[11px] text-gray-500 italic px-2">
-                            Hint: {lesson.article.hints[idx]}
-                          </p>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -372,7 +387,7 @@ export default function ReadLessonPage() {
                       </p>
                     </div>
                     <div className="bg-white rounded-2xl border-2 border-cream-dark px-6 py-5 leading-relaxed space-y-4">
-                      {lesson.article.paragraphs.map((p, idx) => (
+                      {lesson.lesson.paragraphs.map((p, idx) => (
                         <p
                           key={idx}
                           className={`font-[family-name:var(--font-dm-sans)] ${articleTextSizeClass} text-foreground`}
@@ -421,7 +436,7 @@ export default function ReadLessonPage() {
                     </div>
                     <div className="bg-white rounded-2xl border-2 border-cream-dark px-6 py-5">
                       <p className="font-[family-name:var(--font-fraunces)] text-base font-bold text-foreground mb-3">
-                        {activeQuestion.prompt}
+                        {activeQuestion.question}
                       </p>
                       {activeQuestion.type === "mcq" && activeQuestion.options && (
                         <div className="space-y-2">
@@ -502,7 +517,7 @@ export default function ReadLessonPage() {
                       Focus areas
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {evaluation.focusAreas.map((area) => (
+                      {evaluation.focus_areas.map((area) => (
                         <span
                           key={area}
                           className="inline-flex items-center rounded-full px-3 py-1 text-xs font-[family-name:var(--font-dm-sans)] bg-secondary/30 text-foreground"
@@ -515,30 +530,14 @@ export default function ReadLessonPage() {
                   <div className="bg-white rounded-2xl border-2 border-cream-dark px-6 py-5 space-y-3">
                     {lesson.questions.map((q) => {
                       const userAnswer = answers[q.id];
-                      const detail = evaluation.details[q.id];
                       return (
                         <div key={q.id} className="border-b border-cream-dark/60 pb-3 last:border-b-0 last:pb-0">
                           <p className="font-[family-name:var(--font-fraunces)] text-sm font-bold text-foreground mb-1">
-                            {q.prompt}
+                            {q.question}
                           </p>
-                          <p className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-500 mb-1">
-                            {detail.correct ? "Correct" : "Needs improvement"}
+                          <p className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-600">
+                            Your answer: {q.type === "mcq" && q.options ? q.options[Number(userAnswer)] || "No answer" : userAnswer || "No answer"}
                           </p>
-                          {q.type === "mcq" && q.options && (
-                            <p className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-600">
-                              Correct answer: {q.options[detail.correctIndex ?? 0]}
-                            </p>
-                          )}
-                          {q.type === "short" && (
-                            <>
-                              <p className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-600">
-                                Your answer: {userAnswer || "No answer"}
-                              </p>
-                              <p className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-600">
-                                Suggested answer: {detail.idealAnswer}
-                              </p>
-                            </>
-                          )}
                         </div>
                       );
                     })}
@@ -567,7 +566,7 @@ export default function ReadLessonPage() {
                   disabled={
                     (step === "vocab" && !allVocabRead) ||
                     (step === "article" && !articleReadOnce) ||
-                    (step === "questions" && !allQuestionsAnswered)
+                    (step === "questions" && (!allQuestionsAnswered || evaluating))
                   }
                   onClick={() => {
                     if (step === "vocab") setStep("article");
@@ -577,7 +576,7 @@ export default function ReadLessonPage() {
                 >
                   {step === "vocab" && "Start reading"}
                   {step === "article" && "Next: Questions"}
-                  {step === "questions" && "Submit answers"}
+                  {step === "questions" && (evaluating ? "Evaluating..." : "Submit answers")}
                 </button>
               )}
               {step === "evaluation" && (
