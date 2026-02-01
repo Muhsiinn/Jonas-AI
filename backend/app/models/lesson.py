@@ -18,6 +18,8 @@ class Lesson(Base):
     summary = Column(String, nullable=True)
     focus_areas = Column(ARRAY(String), nullable=True)
     per_question = Column(JSONB, nullable=True)
+    progress = Column(JSONB, nullable=True, default={})
+    completed = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     user = relationship("User", back_populates="lesson")

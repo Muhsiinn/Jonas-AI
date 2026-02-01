@@ -1,6 +1,7 @@
 "use client";
 
 import { SituationOutput } from "@/lib/api";
+import { Sparkles } from "lucide-react";
 
 type TodaySituationHeaderProps = {
   loadingSituation: boolean;
@@ -13,7 +14,10 @@ export function TodaySituationHeader({ loadingSituation, dailySituation }: Today
       <p className="font-[family-name:var(--font-dm-sans)] text-sm text-gray-500">Today&apos;s Situation</p>
       <h1 className="font-[family-name:var(--font-fraunces)] text-lg font-bold text-foreground">
         {loadingSituation ? (
-          <span className="text-gray-400">Loading...</span>
+          <span className="flex items-center gap-2 text-gray-400">
+            <Sparkles className="w-4 h-4 animate-pulse" />
+            <span className="animate-pulse">Creating your situation...</span>
+          </span>
         ) : (
           <span className="text-primary">{dailySituation?.situation || "No situation available"}</span>
         )}

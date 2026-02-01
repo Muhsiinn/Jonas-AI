@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing_extensions import TypedDict
-from typing import Annotated ,List,Literal
+from typing import Annotated ,List,Literal,Optional
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from app.schemas.user import UserProfileRequest
@@ -54,7 +54,26 @@ class EvaluateAnswer(BaseModel):
 class EvaluateLessonRequest(BaseModel):
     answers: List[EvaluateAnswer]
 
+class QuestionFeedback(BaseModel):
+    question_id: int
+    correct: bool
+    correct_option_index: Optional[int] = None  
+    ideal_answer: Optional[str] = None 
+    explanation: Optional[str] = None  
+
 class EvaluateLessonOutput(BaseModel):
-    score : int
-    summary : str
-    focus_areas : List[str]
+    score: int
+    summary: str
+    focus_areas: List[str]
+    per_question: List[QuestionFeedback]
+
+class LessonProgress(BaseModel):
+    current_step: str = "vocab"
+    vocab_read: List[bool] = []
+    article_read_once: bool = False
+    answers: dict = {}
+    active_vocab_index: int = 0
+    active_question_index: int = 0
+
+class UpdateProgressRequest(BaseModel):
+    progress: LessonProgress

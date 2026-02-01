@@ -8,6 +8,7 @@ import { DashboardNavbar } from "@/components/dashboard/DashboardNavbar";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { TodaySituationHeader } from "@/components/dashboard/TodaySituationHeader";
 import { DashboardActions } from "@/components/dashboard/DashboardActions";
+import { Sparkles } from "lucide-react";
 
 export default function DashboardPage() {
   const { user, loading, logout, isAuthenticated } = useAuth();
@@ -114,8 +115,19 @@ export default function DashboardPage() {
   if (loading || checkingProfile) {
     return (
       <div className="h-screen bg-cream flex items-center justify-center">
-        <div className="text-center">
-          <div className="font-[family-name:var(--font-dm-sans)] text-gray-600">Loading...</div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+            <div className="absolute inset-0 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+            <Sparkles className="w-6 h-6 text-primary animate-pulse" />
+          </div>
+          <div className="text-center">
+            <p className="font-[family-name:var(--font-fraunces)] text-lg font-bold text-foreground">
+              Creating your personalized daily situation
+            </p>
+            <p className="font-[family-name:var(--font-dm-sans)] text-sm text-gray-500 mt-1">
+              This may take a moment...
+            </p>
+          </div>
         </div>
       </div>
     );

@@ -62,6 +62,7 @@ export interface VocabItem {
 }
 
 export interface LessonOutput {
+  id?: number;
   user_id: number | null;
   title: string;
   paragraphs: string[];
@@ -74,10 +75,24 @@ export interface Question {
   question: string;
 }
 
+export interface LessonProgress {
+  current_step: string;
+  vocab_read: boolean[];
+  article_read_once: boolean;
+  answers: Record<number, string>;
+  active_vocab_index: number;
+  active_question_index: number;
+}
+
 export interface AgentOutput {
   lesson: LessonOutput;
   questions: Question[];
   vocabs: VocabItem[];
+  progress?: LessonProgress;
+  completed?: boolean;
+  is_today?: boolean;
+  created_at?: string;
+  evaluation?: EvaluateLessonOutput | null;
 }
 
 export interface EvaluateAnswer {
@@ -89,10 +104,34 @@ export interface EvaluateLessonRequest {
   answers: EvaluateAnswer[];
 }
 
+export interface QuestionFeedback {
+  question_id: number;
+  correct: boolean;
+  correct_option_index?: number;
+  ideal_answer?: string;
+  explanation?: string;
+}
+
 export interface EvaluateLessonOutput {
   score: number;
   summary: string;
   focus_areas: string[];
+  per_question: QuestionFeedback[];
+}
+
+export interface LessonHistoryItem {
+  id: number;
+  title: string;
+  score: number | null;
+  completed: boolean;
+  created_at: string | null;
+}
+
+export interface LessonStreamEvent {
+  type: 'progress' | 'complete' | 'error';
+  step?: string;
+  message?: string;
+  data?: AgentOutput;
 }
 
 class ApiClient {
@@ -209,10 +248,79 @@ class ApiClient {
     });
   }
 
-  async createLesson(): Promise<AgentOutput> {
-    return this.request<AgentOutput>('/api/v1/agents/create_lesson', {
+  async createLesson(onProgress?: (event: LessonStreamEvent) => void): Promise<AgentOutput> {
+    const token = this.getToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${this.baseUrl}/api/v1/agents/create_lesson`, {
       method: 'GET',
+      headers,
     });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'An error occurred' }));
+      throw new Error(error.detail || `HTTP error! status: ${response.status}`);
+    }
+
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let result: AgentOutput | null = null;
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        
+        try {
+          const eventData = JSON.parse(line.slice(6)) as LessonStreamEvent;
+          
+          if (eventData.type === 'error') {
+            throw new Error(eventData.message || 'Failed to create lesson');
+          }
+          
+          if (onProgress) {
+            onProgress(eventData);
+          }
+          
+          if (eventData.type === 'complete' && eventData.data) {
+            result = eventData.data;
+          }
+        } catch (e) {
+          if (e instanceof SyntaxError) continue;
+          throw e;
+        }
+      }
+    }
+
+    if (buffer.startsWith('data: ')) {
+      try {
+        const eventData = JSON.parse(buffer.slice(6)) as LessonStreamEvent;
+        if (onProgress) {
+          onProgress(eventData);
+        }
+        if (eventData.type === 'complete' && eventData.data) {
+          result = eventData.data;
+        }
+      } catch (e) {
+        // ignore parse errors on remaining buffer
+      }
+    }
+
+    if (!result) {
+      throw new Error('Failed to create lesson - no data received');
+    }
+
+    return result;
   }
 
   async evaluateLesson(data: EvaluateLessonRequest): Promise<EvaluateLessonOutput> {
@@ -220,6 +328,21 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  async updateProgress(progress: LessonProgress): Promise<{ status: string; progress: LessonProgress }> {
+    return this.request<{ status: string; progress: LessonProgress }>('/api/v1/agents/progress', {
+      method: 'PUT',
+      body: JSON.stringify({ progress }),
+    });
+  }
+
+  async getLessonsHistory(): Promise<LessonHistoryItem[]> {
+    return this.request<LessonHistoryItem[]>('/api/v1/agents/lessons');
+  }
+
+  async getLessonById(lessonId: number): Promise<AgentOutput> {
+    return this.request<AgentOutput>(`/api/v1/agents/lessons/${lessonId}`);
   }
 }
 

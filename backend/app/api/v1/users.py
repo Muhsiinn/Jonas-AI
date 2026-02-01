@@ -74,7 +74,7 @@ async def get_daily_situation(current_user: User = Depends(get_current_user), db
     last_seven_days_situations = [situation.daily_situation for situation in last_seven_days_situations_db]
         
     llm = LLMClient()
-    llm = llm.get_client("tngtech/tng-r1t-chimera:free")
+    llm = llm.get_client("arcee-ai/trinity-mini:free")
 
     yaml_prompts = open_yaml("app/core/prompts.yaml")
     p = yaml_prompts['situation_generate']

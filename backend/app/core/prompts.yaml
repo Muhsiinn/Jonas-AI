@@ -101,20 +101,22 @@ evaluate_lesson_prompt: |
      - Check if the student's answer (option index) matches the correct answer based on the article
      - Set "correct" to true/false
      - Always include "correct_option_index" with the index of the correct option
+     - Provide a brief "explanation" in English why the answer is correct/incorrect
 
   2. For short answer questions (type: "short"):
      - Evaluate if the answer demonstrates understanding of the article
      - Be lenient with minor grammar mistakes but strict on content accuracy
      - Set "correct" to true if the answer captures the key points
-     - If incorrect or incomplete, provide "ideal_answer" in German
+     - Always provide "ideal_answer" in German showing the expected response
+     - Provide "explanation" in English explaining what was good or what was missing
 
   3. Calculate overall score (0-100):
      - Base score on percentage of correct answers
      - Deduct points for incomplete short answers even if partially correct
      - Award bonus points for exceptional short answers with good grammar
 
-  4. Write a brief encouraging summary in German (1-2 sentences)
+  4. Write a brief encouraging summary in English (2-3 sentences)
 
-  5. Identify 1-3 focus areas the student should practice (in German)
+  5. Identify 1-3 focus areas the student should practice (in English)
 
-  Return only the score, summary and focus areas.
+  Return the evaluation with score, summary, focus_areas, and per_question feedback for each question.

@@ -1,15 +1,19 @@
- "use client";
+"use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Volume2, CheckCircle2, Minus, Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, BookOpen, Languages, MessageCircleQuestion, Loader2, Lock, Calendar } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { DashboardNavbar } from "@/components/dashboard/DashboardNavbar";
 import {
   apiClient,
   AgentOutput,
   EvaluateLessonOutput,
+  LessonStreamEvent,
+  LessonProgress,
+  LessonHistoryItem,
 } from "@/lib/api";
+import { VocabStep, ArticleStep, QuestionsStep, EvaluationStep } from "./components";
 
 type ReadStep = "vocab" | "article" | "questions" | "evaluation";
 
@@ -21,29 +25,160 @@ export default function ReadLessonPage() {
   const [lesson, setLesson] = useState<AgentOutput | null>(null);
   const [lessonLoading, setLessonLoading] = useState(true);
   const [lessonError, setLessonError] = useState<string | null>(null);
+  const [isNewLesson, setIsNewLesson] = useState<boolean | null>(null);
+  const [progressStep, setProgressStep] = useState<string>("lesson");
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [evaluation, setEvaluation] = useState<EvaluateLessonOutput | null>(null);
   const [evaluating, setEvaluating] = useState(false);
   const [activeVocabIndex, setActiveVocabIndex] = useState(0);
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
   const [readVocab, setReadVocab] = useState<boolean[]>([]);
-  const [articleFontSize, setArticleFontSize] = useState<"sm" | "md" | "lg">("sm");
+  const [articleFontSize, setArticleFontSize] = useState<"sm" | "md" | "lg">("lg");
   const [articleReadOnce, setArticleReadOnce] = useState(false);
-  const [paragraphHintsOpen, setParagraphHintsOpen] = useState<boolean[]>([]);
   const [sidebarHidden, setSidebarHidden] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
+  const [audioRef] = useState<{ current: HTMLAudioElement | null }>({ current: null });
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const initialLoadRef = useRef(true);
+  const progressDataRef = useRef({
+    step: "vocab" as ReadStep,
+    readVocab: [] as boolean[],
+    articleReadOnce: false,
+    answers: {} as Record<number, string>,
+    activeVocabIndex: 0,
+    activeQuestionIndex: 0,
+  });
 
-  const fetchLesson = useCallback(async () => {
+  const [lessonsHistory, setLessonsHistory] = useState<LessonHistoryItem[]>([]);
+  const [selectedLessonId, setSelectedLessonId] = useState<number | null>(null);
+
+  const isReadOnly = lesson?.completed || (lesson?.is_today === false);
+
+  const speakText = useCallback(async (text: string) => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+
+    setSpeaking(true);
+    
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const audioUrl = `${apiUrl}/api/v1/agents/tts?text=${encodeURIComponent(text)}&lang=de`;
+      
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+      
+      audio.onended = () => {
+        setSpeaking(false);
+        audioRef.current = null;
+      };
+      
+      audio.onerror = () => {
+        setSpeaking(false);
+        audioRef.current = null;
+      };
+      
+      await audio.play();
+    } catch {
+      setSpeaking(false);
+    }
+  }, [audioRef]);
+
+  const stopSpeaking = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setSpeaking(false);
+  }, [audioRef]);
+
+  const loadLessonData = useCallback((data: AgentOutput) => {
+    setLesson(data);
+    
+    if (data.progress && Object.keys(data.progress).length > 0) {
+      const p = data.progress;
+      setStep(p.current_step as ReadStep || "vocab");
+      setReadVocab(p.vocab_read?.length ? p.vocab_read : data.vocabs.map((_, i) => i === 0));
+      setArticleReadOnce(p.article_read_once || false);
+      setAnswers(p.answers || {});
+      setActiveVocabIndex(p.active_vocab_index || 0);
+      setActiveQuestionIndex(p.active_question_index || 0);
+    } else {
+      setStep("vocab");
+      setReadVocab(data.vocabs.map((_, i) => i === 0));
+      setArticleReadOnce(false);
+      setAnswers({});
+      setActiveVocabIndex(0);
+      setActiveQuestionIndex(0);
+    }
+    
+    if (data.evaluation) {
+      setEvaluation(data.evaluation);
+      if (data.evaluation.score !== undefined) {
+        setStep("evaluation");
+      }
+    } else {
+      setEvaluation(null);
+    }
+  }, []);
+
+  const fetchLessonById = useCallback(async (lessonId: number) => {
     try {
       setLessonLoading(true);
       setLessonError(null);
-      const data = await apiClient.createLesson();
-      setLesson(data);
-      setReadVocab(data.vocabs.map(() => false));
-      setParagraphHintsOpen(data.lesson.paragraphs.map(() => false));
+      setIsNewLesson(false);
+      initialLoadRef.current = true;
+      
+      const data = await apiClient.getLessonById(lessonId);
+      loadLessonData(data);
+      setSelectedLessonId(lessonId);
+      
+      initialLoadRef.current = false;
     } catch (err) {
       setLessonError(err instanceof Error ? err.message : "Failed to load lesson");
     } finally {
       setLessonLoading(false);
+    }
+  }, [loadLessonData]);
+
+  const fetchTodayLesson = useCallback(async () => {
+    try {
+      setLessonLoading(true);
+      setLessonError(null);
+      setIsNewLesson(null);
+      setProgressStep("lesson");
+      initialLoadRef.current = true;
+      
+      let receivedProgress = false;
+      const data = await apiClient.createLesson((event: LessonStreamEvent) => {
+        if (event.type === 'progress' && event.step && event.message) {
+          receivedProgress = true;
+          setIsNewLesson(true);
+          setProgressStep(event.step);
+        }
+        if (event.type === 'complete' && !receivedProgress) {
+          setIsNewLesson(false);
+        }
+      });
+      
+      loadLessonData(data);
+      setSelectedLessonId(data.lesson.id || null);
+      
+      initialLoadRef.current = false;
+    } catch (err) {
+      setLessonError(err instanceof Error ? err.message : "Failed to load lesson");
+    } finally {
+      setLessonLoading(false);
+    }
+  }, [loadLessonData]);
+
+  const fetchHistory = useCallback(async () => {
+    try {
+      const history = await apiClient.getLessonsHistory();
+      setLessonsHistory(history);
+    } catch (err) {
+      console.error("Failed to fetch history:", err);
     }
   }, []);
 
@@ -53,18 +188,225 @@ export default function ReadLessonPage() {
         router.push("/login");
       } else {
         setChecking(false);
-        fetchLesson();
+        fetchTodayLesson();
+        fetchHistory();
       }
     }
-  }, [loading, isAuthenticated, router, fetchLesson]);
+  }, [loading, isAuthenticated, router, fetchTodayLesson, fetchHistory]);
+
+  useEffect(() => {
+    progressDataRef.current = {
+      step,
+      readVocab,
+      articleReadOnce,
+      answers,
+      activeVocabIndex,
+      activeQuestionIndex,
+    };
+  }, [step, readVocab, articleReadOnce, answers, activeVocabIndex, activeQuestionIndex]);
+
+  const saveProgress = useCallback(async () => {
+    if (!lesson || initialLoadRef.current || isReadOnly) return;
+    
+    const data = progressDataRef.current;
+    const progress: LessonProgress = {
+      current_step: data.step,
+      vocab_read: data.readVocab,
+      article_read_once: data.articleReadOnce,
+      answers: data.answers,
+      active_vocab_index: data.activeVocabIndex,
+      active_question_index: data.activeQuestionIndex,
+    };
+    
+    try {
+      await apiClient.updateProgress(progress);
+    } catch (err) {
+      console.error("Failed to save progress:", err);
+    }
+  }, [lesson, isReadOnly]);
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (!initialLoadRef.current && lesson && !isReadOnly) {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+        
+        const data = progressDataRef.current;
+        fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/agents/progress`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            progress: {
+              current_step: data.step,
+              vocab_read: data.readVocab,
+              article_read_once: data.articleReadOnce,
+              answers: data.answers,
+              active_vocab_index: data.activeVocabIndex,
+              active_question_index: data.activeQuestionIndex,
+            }
+          }),
+          keepalive: true,
+        });
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [lesson, isReadOnly]);
+
+  useEffect(() => {
+    if (initialLoadRef.current || !lesson || isReadOnly) return;
+    
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    
+    saveTimeoutRef.current = setTimeout(() => {
+      saveProgress();
+    }, 2000);
+    
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [readVocab, articleReadOnce, activeVocabIndex, saveProgress, lesson, isReadOnly]);
+
+  useEffect(() => {
+    if (initialLoadRef.current || !lesson || isReadOnly) return;
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveProgress();
+  }, [step, saveProgress, lesson, isReadOnly]);
+
+  const handleAnswerChange = (questionId: number, value: string) => {
+    if (isReadOnly) return;
+    setAnswers((prev) => ({ ...prev, [questionId]: value }));
+  };
+
+  const handleSubmitAnswers = async () => {
+    if (!lesson || isReadOnly) return;
+    setEvaluating(true);
+    try {
+      const answersArray = lesson.questions.map((q) => ({
+        question_id: q.id,
+        answer: answers[q.id] ?? "",
+      }));
+      const result = await apiClient.evaluateLesson({ answers: answersArray });
+      setEvaluation(result);
+      setStep("evaluation");
+      setLesson(prev => prev ? { ...prev, completed: true } : null);
+      fetchHistory();
+    } catch (err) {
+      console.error("Failed to evaluate:", err);
+    } finally {
+      setEvaluating(false);
+    }
+  };
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    if (date.toDateString() === today.toDateString()) return "Today";
+    if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
 
   if (loading || checking || lessonLoading) {
+    const steps = [
+      { key: "lesson", label: "Article", icon: BookOpen },
+      { key: "vocab", label: "Vocabulary", icon: Languages },
+      { key: "questions", label: "Questions", icon: MessageCircleQuestion },
+    ];
+    const currentIndex = steps.findIndex(s => s.key === progressStep);
+    
+    if (isNewLesson === false) {
+      return (
+        <div className="h-screen bg-cream flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="relative w-14 h-14 rounded-full flex items-center justify-center bg-primary/5">
+              <div className="absolute inset-0 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+              <BookOpen className="w-6 h-6 text-primary" />
+            </div>
+            <h2 className="font-[family-name:var(--font-fraunces)] text-xl font-bold text-foreground">
+              Loading your lesson
+            </h2>
+          </div>
+        </div>
+      );
+    }
+    
     return (
       <div className="h-screen bg-cream flex items-center justify-center">
-        <div className="text-center">
-          <div className="font-[family-name:var(--font-dm-sans)] text-gray-600">
-            {lessonLoading ? "Creating your lesson..." : "Loading..."}
-          </div>
+        <div className="flex flex-col items-center gap-8">
+          <h2 className="font-[family-name:var(--font-fraunces)] text-xl font-bold text-foreground">
+            Creating your lesson
+          </h2>
+          {lessonLoading ? (
+            <div className="flex items-center gap-6">
+              {steps.map((s, i) => {
+                const isComplete = currentIndex > i;
+                const isCurrent = currentIndex === i;
+                const Icon = s.icon;
+                
+                return (
+                  <div key={s.key} className="flex flex-col items-center gap-2">
+                    <div
+                      className={`relative w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 ${
+                        isComplete
+                          ? "bg-primary/10"
+                          : isCurrent
+                          ? "bg-primary/5"
+                          : "bg-cream-dark/30"
+                      }`}
+                    >
+                      {isCurrent && (
+                        <div className="absolute inset-0 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                      )}
+                      {isComplete && (
+                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-primary rounded-full flex items-center justify-center">
+                          <CheckCircle2 className="w-3 h-3 text-white" />
+                        </div>
+                      )}
+                      <Icon
+                        className={`w-6 h-6 transition-colors ${
+                          isComplete
+                            ? "text-primary"
+                            : isCurrent
+                            ? "text-primary animate-pulse"
+                            : "text-gray-400"
+                        }`}
+                      />
+                    </div>
+                    <span
+                      className={`font-[family-name:var(--font-dm-sans)] text-xs transition-colors ${
+                        isComplete
+                          ? "text-primary font-medium"
+                          : isCurrent
+                          ? "text-foreground font-medium"
+                          : "text-gray-400"
+                      }`}
+                    >
+                      {s.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 font-[family-name:var(--font-dm-sans)] text-gray-600">
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              Loading...
+            </div>
+          )}
         </div>
       </div>
     );
@@ -80,7 +422,7 @@ export default function ReadLessonPage() {
           <button
             type="button"
             className="font-[family-name:var(--font-dm-sans)] text-sm px-4 py-2 rounded-full border border-primary text-white bg-primary"
-            onClick={fetchLesson}
+            onClick={fetchTodayLesson}
           >
             Try Again
           </button>
@@ -93,40 +435,10 @@ export default function ReadLessonPage() {
     return null;
   }
 
-  const handleAnswerChange = (questionId: number, value: string) => {
-    setAnswers((prev) => ({ ...prev, [questionId]: value }));
-  };
-
-  const handleSubmitAnswers = async () => {
-    setEvaluating(true);
-    try {
-      const answersArray = lesson.questions.map((q) => ({
-        question_id: q.id,
-        answer: answers[q.id] ?? "",
-      }));
-      const result = await apiClient.evaluateLesson({ answers: answersArray });
-      setEvaluation(result);
-      setStep("evaluation");
-    } catch (err) {
-      console.error("Failed to evaluate:", err);
-    } finally {
-      setEvaluating(false);
-    }
-  };
-
-  const activeQuestion = lesson.questions[activeQuestionIndex];
-
   const stepOrder: ReadStep[] = ["vocab", "article", "questions", "evaluation"];
   const currentStepIndex = stepOrder.indexOf(step);
   const allVocabRead = readVocab.every(Boolean);
   const allQuestionsAnswered = lesson.questions.every((q) => (answers[q.id] ?? "").trim().length > 0);
-
-  const articleTextSizeClass =
-    articleFontSize === "sm"
-      ? "text-sm"
-      : articleFontSize === "md"
-      ? "text-base"
-      : "text-lg";
 
   return (
     <div className="h-screen bg-cream flex flex-col overflow-hidden">
@@ -138,7 +450,7 @@ export default function ReadLessonPage() {
             <div className="p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="font-[family-name:var(--font-fraunces)] text-lg font-bold text-foreground">
-                  Today&apos;s Lesson
+                  Lessons
                 </h2>
                 <button
                   type="button"
@@ -149,16 +461,67 @@ export default function ReadLessonPage() {
                   Hide
                 </button>
               </div>
+              
               <div className="space-y-2">
-                <div className="w-full text-left rounded-2xl border px-3 py-2 text-xs font-[family-name:var(--font-dm-sans)] border-primary bg-primary/10 text-foreground">
-                  <div className="flex items-center justify-between mb-1">
-                    <span>{lesson.lesson.title}</span>
-                    <span className="text-[10px] text-gray-500">Today</span>
-                  </div>
-                  <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] bg-cream-dark/20 text-gray-700">
-                    In progress
-                  </span>
-                </div>
+                {lessonsHistory.map((item) => {
+                  const isSelected = item.id === selectedLessonId;
+                  const isToday = formatDate(item.created_at) === "Today";
+                  
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        if (!isSelected) {
+                          fetchLessonById(item.id);
+                        }
+                      }}
+                      className={`w-full text-left rounded-2xl border px-3 py-2.5 text-xs font-[family-name:var(--font-dm-sans)] transition-colors ${
+                        isSelected
+                          ? "border-primary bg-primary/10 text-foreground"
+                          : "border-cream-dark bg-white text-foreground hover:bg-cream-dark/20"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-1.5">
+                        <span className="font-medium line-clamp-2">{item.title}</span>
+                        <span className="text-[10px] text-gray-500 whitespace-nowrap flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {formatDate(item.created_at)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {item.completed ? (
+                          <>
+                            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Completed
+                            </span>
+                            {item.score !== null && (
+                              <span className="text-[10px] text-gray-500">
+                                Score: {item.score}/100
+                              </span>
+                            )}
+                          </>
+                        ) : isToday ? (
+                          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] bg-amber-50 text-amber-700 border border-amber-200">
+                            In progress
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] bg-gray-100 text-gray-600">
+                            <Lock className="w-3 h-3" />
+                            Incomplete
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+                
+                {lessonsHistory.length === 0 && (
+                  <p className="text-xs text-gray-500 text-center py-4">
+                    No lessons yet
+                  </p>
+                )}
               </div>
             </div>
           </aside>
@@ -177,29 +540,46 @@ export default function ReadLessonPage() {
               </button>
             </div>
           )}
-          <div className="bg-white border-b border-cream-dark px-8 py-4 flex-shrink-0">
+          <div className="bg-white border-b border-cream-dark px-8 py-4 shrink-0">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-[family-name:var(--font-dm-sans)] text-xs uppercase tracking-wide text-gray-500">
-                  Read lesson
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="font-[family-name:var(--font-dm-sans)] text-xs uppercase tracking-wide text-gray-500">
+                    {isReadOnly ? "Review lesson" : "Read lesson"}
+                  </p>
+                  {isReadOnly && (
+                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-[family-name:var(--font-dm-sans)] bg-gray-100 text-gray-600 border border-gray-200">
+                      <Lock className="w-3 h-3" />
+                      Read only
+                    </span>
+                  )}
+                </div>
                 <h1 className="font-[family-name:var(--font-fraunces)] text-lg font-bold text-foreground">
                   {lesson.lesson.title}
                 </h1>
               </div>
               <div className="flex items-center gap-2">
                 {stepOrder.map((s, index) => (
-                  <div key={s} className="flex items-center gap-1">
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => {
+                      if (isReadOnly || index <= currentStepIndex) {
+                        setStep(s);
+                      }
+                    }}
+                    className="flex items-center gap-1"
+                  >
                     <div
-                      className={`w-2.5 h-2.5 rounded-full ${
+                      className={`w-2.5 h-2.5 rounded-full transition-colors ${
                         index === currentStepIndex
                           ? "bg-primary"
                           : index < currentStepIndex
                           ? "bg-primary/40"
                           : "bg-cream-dark"
-                      }`}
+                      } ${(isReadOnly || index <= currentStepIndex) ? "cursor-pointer hover:scale-125" : ""}`}
                     />
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -207,386 +587,126 @@ export default function ReadLessonPage() {
 
           <div className="flex-1 overflow-hidden flex flex-col">
             {step === "vocab" && (
-              <div className="flex-1 overflow-y-auto p-8">
-                <div className="max-w-4xl space-y-4">
-                  <div>
-                    <p className="font-[family-name:var(--font-dm-sans)] text-[11px] text-gray-500 mb-1">
-                      Step 1 · Vocab for today&apos;s situation
-                    </p>
-                    <p className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-600">
-                      Get familiar with a few key words before you read the story. Tap each word and listen to the
-                      pronunciation.
-                    </p>
-                  </div>
-
-                  <div className="bg-white rounded-2xl border-2 border-cream-dark px-6 py-4 flex items-center justify-between">
-                    <div>
-                      <p className="font-[family-name:var(--font-fraunces)] text-base font-bold text-foreground">
-                        {lesson.vocabs[activeVocabIndex].term}
-                      </p>
-                      <p className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-600">
-                        {lesson.vocabs[activeVocabIndex].meaning}
-                      </p>
-                      {lesson.vocabs[activeVocabIndex].example && (
-                        <p className="font-[family-name:var(--font-dm-sans)] text-[11px] text-gray-500 mt-1">
-                          {lesson.vocabs[activeVocabIndex].example}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-[family-name:var(--font-dm-sans)] text-[11px] text-gray-500">
-                        Word {activeVocabIndex + 1} / {lesson.vocabs.length}
-                      </span>
-                      <button
-                        type="button"
-                        className="w-9 h-9 rounded-full border border-cream-dark/80 bg-cream/70 flex items-center justify-center text-foreground hover:bg-cream-dark/60 transition-colors"
-                      >
-                        <Volume2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                    {lesson.vocabs.map((item, index) => {
-                      const isActive = index === activeVocabIndex;
-                      const isRead = readVocab[index];
-                      return (
-                        <button
-                          key={item.term}
-                          type="button"
-                          onClick={() => {
-                            setActiveVocabIndex(index);
-                            setReadVocab((prev) => {
-                              const next = [...prev];
-                              next[index] = true;
-                              return next;
-                            });
-                          }}
-                          className={`text-left rounded-2xl px-4 py-3 flex items-center justify-between gap-2 border-2 transition-all ${
-                            isActive
-                              ? "bg-primary/5 border-primary shadow-sm"
-                              : "bg-white border-cream-dark hover:border-primary/60"
-                          }`}
-                        >
-                          <span className="font-[family-name:var(--font-fraunces)] text-sm text-foreground">
-                            {item.term}
-                          </span>
-                          {isRead && (
-                            <span className="flex items-center gap-1 text-[11px] font-[family-name:var(--font-dm-sans)] text-emerald-700">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              Read
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
+              <VocabStep
+                vocabs={lesson.vocabs}
+                activeVocabIndex={activeVocabIndex}
+                setActiveVocabIndex={isReadOnly ? () => {} : setActiveVocabIndex}
+                readVocab={readVocab}
+                setReadVocab={isReadOnly ? () => {} : setReadVocab}
+                speaking={speaking}
+                speakText={speakText}
+              />
             )}
 
             {step === "article" && (
-              <div className="flex-1 overflow-y-auto p-8">
-                <div className="max-w-3xl space-y-4">
-                  <div>
-                    <p className="font-[family-name:var(--font-dm-sans)] text-[11px] text-gray-500 mb-1">
-                      Step 2 · Read the story
-                    </p>
-                    <p className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-600">
-                      Read the German text once or twice without translating every word. Focus on the main idea and how
-                      your vocab shows up in context. You&apos;ll answer questions and get feedback afterwards.
-                    </p>
-                  </div>
-
-                  <div className="flex items-center justify-between text-[11px] font-[family-name:var(--font-dm-sans)] text-gray-600">
-                    <span>Reading comfort</span>
-                    <div className="flex items-center gap-2">
-                      <div className="inline-flex items-center gap-1 rounded-full border border-cream-dark/80 bg-cream/60 px-2 py-0.5">
-                        <button
-                          type="button"
-                          className="p-1 rounded-full hover:bg-cream-dark/60 transition-colors"
-                          onClick={() =>
-                            setArticleFontSize((prev) => (prev === "sm" ? "sm" : prev === "md" ? "sm" : "md"))
-                          }
-                        >
-                          <Minus className="w-3 h-3" />
-                        </button>
-                        <span
-                          className={`px-1 font-[family-name:var(--font-dm-sans)] ${
-                            articleFontSize === "sm"
-                              ? "text-xs"
-                              : articleFontSize === "md"
-                              ? "text-sm"
-                              : "text-base"
-                          }`}
-                        >
-                          A
-                        </span>
-                        <button
-                          type="button"
-                          className="p-1 rounded-full hover:bg-cream-dark/60 transition-colors"
-                          onClick={() =>
-                            setArticleFontSize((prev) => (prev === "lg" ? "lg" : prev === "md" ? "lg" : "md"))
-                          }
-                        >
-                          <Plus className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-2xl border-2 border-cream-dark px-6 py-5 leading-relaxed space-y-4">
-                    {lesson.lesson.paragraphs.map((p, idx) => (
-                      <div key={idx} className="space-y-1">
-                        <div className="flex items-start gap-3">
-                          <p
-                            className={`flex-1 font-[family-name:var(--font-dm-sans)] ${articleTextSizeClass} text-foreground rounded-md px-2 py-1 hover:bg-cream-dark/20 transition-colors`}
-                          >
-                            {p}
-                          </p>
-                          <button
-                            type="button"
-                            className="mt-1 w-8 h-8 rounded-full border border-cream-dark/80 bg-cream/70 flex items-center justify-center text-foreground hover:bg-cream-dark/60 transition-colors"
-                          >
-                            <Volume2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex items-center justify-between mt-2">
-                    <label className="flex items-center gap-2 text-xs font-[family-name:var(--font-dm-sans)] text-gray-700">
-                      <input
-                        type="checkbox"
-                        className="rounded border-cream-dark"
-                        checked={articleReadOnce}
-                        onChange={(e) => setArticleReadOnce(e.target.checked)}
-                      />
-                      <span>I&apos;ve read the story once.</span>
-                    </label>
-                    <span className="font-[family-name:var(--font-dm-sans)] text-[11px] text-gray-500">
-                      You&apos;ll see detailed feedback after the questions.
-                    </span>
-                  </div>
-                </div>
-              </div>
+              <ArticleStep
+                paragraphs={lesson.lesson.paragraphs}
+                vocabs={lesson.vocabs}
+                articleFontSize={articleFontSize}
+                setArticleFontSize={setArticleFontSize}
+                articleReadOnce={articleReadOnce}
+                setArticleReadOnce={isReadOnly ? () => {} : setArticleReadOnce}
+                speakText={speakText}
+                stopSpeaking={stopSpeaking}
+                speaking={speaking}
+              />
             )}
 
             {step === "questions" && (
-              <div className="flex-1 overflow-y-auto p-8">
-                <div className="flex flex-col lg:flex-row gap-6 max-w-5xl">
-                  <div className="flex-1 space-y-4">
-                    <div>
-                      <p className="font-[family-name:var(--font-dm-sans)] text-[11px] text-gray-500 mb-1">
-                        Step 3 · Questions about the story
-                      </p>
-                      <p className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-600">
-                        Use the text on the left as support. Answer each question as best you can — you&apos;ll get a
-                        score and detailed feedback next.
-                      </p>
-                    </div>
-                    <div className="bg-white rounded-2xl border-2 border-cream-dark px-6 py-5 leading-relaxed space-y-4">
-                      {lesson.lesson.paragraphs.map((p, idx) => (
-                        <p
-                          key={idx}
-                          className={`font-[family-name:var(--font-dm-sans)] ${articleTextSizeClass} text-foreground`}
-                        >
-                          {p}
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex-1">
-                    <div className="mb-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="font-[family-name:var(--font-dm-sans)] text-[11px] text-gray-500">
-                          Questions
-                        </p>
-                        <p className="font-[family-name:var(--font-dm-sans)] text-[11px] text-gray-500">
-                          {activeQuestionIndex + 1} / {lesson.questions.length}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {lesson.questions.map((q, idx) => {
-                          const answered = (answers[q.id] ?? "").trim().length > 0;
-                          const isActive = idx === activeQuestionIndex;
-                          let classes =
-                            "w-7 h-7 rounded-full border text-[11px] font-[family-name:var(--font-dm-sans)] flex items-center justify-center cursor-pointer transition-colors";
-                          if (isActive) {
-                            classes += " border-primary bg-primary text-white";
-                          } else if (answered) {
-                            classes += " border-emerald-200 bg-emerald-50 text-emerald-700";
-                          } else {
-                            classes += " border-cream-dark bg-white text-gray-500";
-                          }
-                          return (
-                            <button
-                              key={q.id}
-                              type="button"
-                              className={classes}
-                              onClick={() => setActiveQuestionIndex(idx)}
-                            >
-                              {idx + 1}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    <div className="bg-white rounded-2xl border-2 border-cream-dark px-6 py-5">
-                      <p className="font-[family-name:var(--font-fraunces)] text-base font-bold text-foreground mb-3">
-                        {activeQuestion.question}
-                      </p>
-                      {activeQuestion.type === "mcq" && activeQuestion.options && (
-                        <div className="space-y-2">
-                          {activeQuestion.options.map((option, idx) => {
-                            const key = `${activeQuestion.id}-${idx}`;
-                            const selected = answers[activeQuestion.id] === String(idx);
-                            return (
-                              <button
-                                key={key}
-                                type="button"
-                                className={`w-full text-left rounded-xl border px-3 py-2 text-sm font-[family-name:var(--font-dm-sans)] ${
-                                  selected
-                                    ? "border-primary bg-primary/10 text-foreground"
-                                    : "border-cream-dark bg-white text-gray-700"
-                                }`}
-                                onClick={() => handleAnswerChange(activeQuestion.id, String(idx))}
-                              >
-                                {option}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                      {activeQuestion.type === "short" && (
-                        <textarea
-                          className="mt-2 w-full rounded-xl border border-cream-dark px-3 py-2 text-sm font-[family-name:var(--font-dm-sans)] text-foreground bg-white"
-                          rows={4}
-                          value={answers[activeQuestion.id] ?? ""}
-                          onChange={(e) => handleAnswerChange(activeQuestion.id, e.target.value)}
-                        />
-                      )}
-                    </div>
-                    <div className="mt-4 flex items-center justify-between">
-                      <button
-                        type="button"
-                        className="font-[family-name:var(--font-dm-sans)] text-[11px] px-3 py-1.5 rounded-full border border-cream-dark/80 text-gray-700 bg-cream/60 disabled:opacity-50"
-                        disabled={activeQuestionIndex === 0}
-                        onClick={() =>
-                          setActiveQuestionIndex((prev) => (prev === 0 ? 0 : prev - 1))
-                        }
-                      >
-                        Previous question
-                      </button>
-                      <button
-                        type="button"
-                        className="font-[family-name:var(--font-dm-sans)] text-[11px] px-3 py-1.5 rounded-full border border-cream-dark/80 text-gray-700 bg-cream/60 disabled:opacity-50"
-                        disabled={activeQuestionIndex === lesson.questions.length - 1}
-                        onClick={() =>
-                          setActiveQuestionIndex((prev) =>
-                            prev === lesson.questions.length - 1 ? prev : prev + 1
-                          )
-                        }
-                      >
-                        Next question
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <QuestionsStep
+                paragraphs={lesson.lesson.paragraphs}
+                questions={lesson.questions}
+                activeQuestionIndex={activeQuestionIndex}
+                setActiveQuestionIndex={setActiveQuestionIndex}
+                answers={answers}
+                onAnswerChange={handleAnswerChange}
+                articleFontSize={articleFontSize}
+                onSaveProgress={isReadOnly ? () => {} : saveProgress}
+              />
             )}
 
             {step === "evaluation" && evaluation && (
-              <div className="flex-1 overflow-y-auto p-8">
-                <div className="max-w-3xl space-y-4">
-                  <div className="bg-white rounded-2xl border-2 border-cream-dark px-6 py-5 flex items-center justify-between">
-                    <div>
-                      <p className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-500">Your score</p>
-                      <p className="font-[family-name:var(--font-fraunces)] text-2xl font-bold text-foreground">
-                        {evaluation.score} / 100
-                      </p>
-                    </div>
-                    <p className="font-[family-name:var(--font-dm-sans)] text-sm text-gray-600 max-w-xs">
-                      {evaluation.summary}
-                    </p>
-                  </div>
-                  <div className="bg-white rounded-2xl border-2 border-cream-dark px-6 py-5">
-                    <p className="font-[family-name:var(--font-fraunces)] text-sm font-bold text-foreground mb-3">
-                      Focus areas
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {evaluation.focus_areas.map((area) => (
-                        <span
-                          key={area}
-                          className="inline-flex items-center rounded-full px-3 py-1 text-xs font-[family-name:var(--font-dm-sans)] bg-secondary/30 text-foreground"
-                        >
-                          {area}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="bg-white rounded-2xl border-2 border-cream-dark px-6 py-5 space-y-3">
-                    {lesson.questions.map((q) => {
-                      const userAnswer = answers[q.id];
-                      return (
-                        <div key={q.id} className="border-b border-cream-dark/60 pb-3 last:border-b-0 last:pb-0">
-                          <p className="font-[family-name:var(--font-fraunces)] text-sm font-bold text-foreground mb-1">
-                            {q.question}
-                          </p>
-                          <p className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-600">
-                            Your answer: {q.type === "mcq" && q.options ? q.options[Number(userAnswer)] || "No answer" : userAnswer || "No answer"}
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
+              <EvaluationStep
+                evaluation={evaluation}
+                questions={lesson.questions}
+                answers={answers}
+              />
             )}
 
             <div className="border-t border-cream-dark bg-white px-8 py-3 flex items-center justify-between">
-              <button
-                type="button"
-                className="font-[family-name:var(--font-dm-sans)] text-xs px-3 py-1.5 rounded-full border border-cream-dark/80 text-gray-700 bg-cream/60 disabled:opacity-50"
-                disabled={step === "vocab"}
-                onClick={() => {
-                  if (step === "article") setStep("vocab");
-                  if (step === "questions") setStep("article");
-                  if (step === "evaluation") setStep("questions");
-                }}
-              >
-                Back
-              </button>
-              {step !== "evaluation" && (
-                <button
-                  type="button"
-                  className="font-[family-name:var(--font-dm-sans)] text-xs px-4 py-1.5 rounded-full border border-primary text-white bg-primary disabled:opacity-50"
-                  disabled={
-                    (step === "vocab" && !allVocabRead) ||
-                    (step === "article" && !articleReadOnce) ||
-                    (step === "questions" && (!allQuestionsAnswered || evaluating))
-                  }
-                  onClick={() => {
-                    if (step === "vocab") setStep("article");
-                    else if (step === "article") setStep("questions");
-                    else if (step === "questions") handleSubmitAnswers();
-                  }}
-                >
-                  {step === "vocab" && "Start reading"}
-                  {step === "article" && "Next: Questions"}
-                  {step === "questions" && (evaluating ? "Evaluating..." : "Submit answers")}
-                </button>
-              )}
-              {step === "evaluation" && (
-                <button
-                  type="button"
-                  className="font-[family-name:var(--font-dm-sans)] text-xs px-4 py-1.5 rounded-full border border-primary text-white bg-primary"
-                  onClick={() => router.push("/dashboard")}
-                >
-                  Back to dashboard
-                </button>
+              {isReadOnly ? (
+                <>
+                  <button
+                    type="button"
+                    className="font-[family-name:var(--font-dm-sans)] text-xs px-3 py-1.5 rounded-full border border-cream-dark/80 text-gray-700 bg-cream/60"
+                    onClick={() => router.push("/dashboard")}
+                  >
+                    Back to dashboard
+                  </button>
+                  <div className="flex items-center gap-3">
+                    {stepOrder.map((s, index) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setStep(s)}
+                        className={`font-[family-name:var(--font-dm-sans)] text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                          step === s
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-cream-dark/80 text-gray-600 hover:bg-cream-dark/20"
+                        }`}
+                      >
+                        {s === "vocab" && "Vocabulary"}
+                        {s === "article" && "Article"}
+                        {s === "questions" && "Questions"}
+                        {s === "evaluation" && "Evaluation"}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="font-[family-name:var(--font-dm-sans)] text-xs px-3 py-1.5 rounded-full border border-cream-dark/80 text-gray-700 bg-cream/60 disabled:opacity-50"
+                    disabled={step === "vocab"}
+                    onClick={() => {
+                      if (step === "article") setStep("vocab");
+                      if (step === "questions") setStep("article");
+                      if (step === "evaluation") setStep("questions");
+                    }}
+                  >
+                    Back
+                  </button>
+                  {step !== "evaluation" && (
+                    <button
+                      type="button"
+                      className="font-[family-name:var(--font-dm-sans)] text-xs px-4 py-1.5 rounded-full border border-primary text-white bg-primary disabled:opacity-50"
+                      disabled={
+                        (step === "vocab" && !allVocabRead) ||
+                        (step === "article" && !articleReadOnce) ||
+                        (step === "questions" && (!allQuestionsAnswered || evaluating))
+                      }
+                      onClick={() => {
+                        if (step === "vocab") setStep("article");
+                        else if (step === "article") setStep("questions");
+                        else if (step === "questions") handleSubmitAnswers();
+                      }}
+                    >
+                      {step === "vocab" && "Start reading"}
+                      {step === "article" && "Next: Questions"}
+                      {step === "questions" && (evaluating ? "Evaluating..." : "Submit answers")}
+                    </button>
+                  )}
+                  {step === "evaluation" && (
+                    <button
+                      type="button"
+                      className="font-[family-name:var(--font-dm-sans)] text-xs px-4 py-1.5 rounded-full border border-primary text-white bg-primary"
+                      onClick={() => router.push("/dashboard")}
+                    >
+                      Back to dashboard
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -595,4 +715,3 @@ export default function ReadLessonPage() {
     </div>
   );
 }
-
