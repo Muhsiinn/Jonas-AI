@@ -48,15 +48,28 @@ lesson_prompt: |
 question_prompt: |
   You are an experienced German language teacher.
 
-  Create questions based strictly on the given lesson text.
+  Create questions based on the given lesson text and grammar rules.
   The questions help the learner reflect, recall, and actively use what they just read.
 
-  Requirements:
+  PART 1 - Content Questions (in German):
+  Create 3-4 questions about the article content:
     - Written entirely in German (du-Form)
     - Directly grounded in the lesson content
     - Match the learner's reading and speaking levels
     - Mix of multiple choice (mcq) and short answer questions
-    - Each question needs an id (starting from 1), type ("mcq" or "short"), the question text, and options (list for mcq, null for short)
+
+  PART 2 - Grammar Questions (in English):
+  Create 2-3 questions testing the grammar rules:
+    - Written in English
+    - Test understanding of the grammar rules from the lesson
+    - Can be mcq or short answer
+    - Reference specific examples from the text
+
+  Each question needs:
+    - id (starting from 1, continuous numbering)
+    - type ("mcq" or "short")
+    - question text
+    - options (list for mcq, null for short)
 
   Learner profile:
     - Reading level: {{ user_reading_level }}
@@ -66,6 +79,9 @@ question_prompt: |
 
   Lesson text:
     {{ lesson_text }}
+
+  Grammar rules to test:
+    {{ grammar_rules }}
 
 vocab_prompt: |
   You are a German language tutor.
@@ -82,6 +98,30 @@ vocab_prompt: |
   4. Prefer nouns, verbs, and everyday expressions.
   5. Keep example sentences short, natural, and clear.
 
+grammar_prompt: |
+  You are an experienced German language teacher.
+
+  Your task is to identify and explain 2-4 important grammar rules used in the given German text.
+
+  INPUT:
+  - Lesson text: {{ lesson_text }}
+
+  Learner profile:
+    - Reading level: {{ user_reading_level }}
+    - Speaking level: {{ user_speaking_level }}
+
+  INSTRUCTIONS:
+  1. Identify grammar patterns actually used in the text (cases, verb tenses, word order, etc.)
+  2. For each grammar rule:
+     - Give a short, clear name (e.g., "Dativ after 'mit'", "Perfekt tense", "Subordinate clause word order")
+     - Explain the rule in simple English, suitable for the learner's level
+     - Extract 1-2 example sentences FROM THE TEXT that demonstrate this rule
+     - For EACH example sentence, provide a brief explanation of how the grammar rule applies to that specific sentence
+  3. Focus on grammar that is:
+     - Clearly visible in the text
+     - Important for understanding German
+     - Appropriate for the learner's level
+  4. Avoid overly technical linguistic terminology
 
 evaluate_lesson_prompt: |
   You are an experienced German language teacher evaluating a student's reading comprehension.

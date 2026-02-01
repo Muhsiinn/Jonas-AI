@@ -13,9 +13,9 @@ import {
   LessonProgress,
   LessonHistoryItem,
 } from "@/lib/api";
-import { VocabStep, ArticleStep, QuestionsStep, EvaluationStep } from "./components";
+import { VocabStep, ArticleStep, GrammarStep, QuestionsStep, EvaluationStep } from "./components";
 
-type ReadStep = "vocab" | "article" | "questions" | "evaluation";
+type ReadStep = "vocab" | "article" | "grammar" | "questions" | "evaluation";
 
 export default function ReadLessonPage() {
   const { loading, isAuthenticated, logout } = useAuth();
@@ -33,6 +33,7 @@ export default function ReadLessonPage() {
   const [activeVocabIndex, setActiveVocabIndex] = useState(0);
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
   const [readVocab, setReadVocab] = useState<boolean[]>([]);
+  const [readGrammar, setReadGrammar] = useState<boolean[]>([]);
   const [articleFontSize, setArticleFontSize] = useState<"sm" | "md" | "lg">("lg");
   const [articleReadOnce, setArticleReadOnce] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
@@ -96,10 +97,13 @@ export default function ReadLessonPage() {
   const loadLessonData = useCallback((data: AgentOutput) => {
     setLesson(data);
     
+    const grammarItems = data.grammar || [];
+    
     if (data.progress && Object.keys(data.progress).length > 0) {
       const p = data.progress;
       setStep(p.current_step as ReadStep || "vocab");
       setReadVocab(p.vocab_read?.length ? p.vocab_read : data.vocabs.map((_, i) => i === 0));
+      setReadGrammar(grammarItems.map((_, i) => i === 0));
       setArticleReadOnce(p.article_read_once || false);
       setAnswers(p.answers || {});
       setActiveVocabIndex(p.active_vocab_index || 0);
@@ -107,6 +111,7 @@ export default function ReadLessonPage() {
     } else {
       setStep("vocab");
       setReadVocab(data.vocabs.map((_, i) => i === 0));
+      setReadGrammar(grammarItems.map((_, i) => i === 0));
       setArticleReadOnce(false);
       setAnswers({});
       setActiveVocabIndex(0);
@@ -288,6 +293,23 @@ export default function ReadLessonPage() {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   };
 
+  const handleAddVocab = useCallback((vocab: { term: string; meaning: string; example: string }) => {
+    if (!lesson || isReadOnly) return;
+    
+    const exists = lesson.vocabs.some(v => v.term.toLowerCase() === vocab.term.toLowerCase());
+    if (exists) return;
+    
+    setLesson(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        vocabs: [...prev.vocabs, vocab]
+      };
+    });
+    
+    setReadVocab(prev => [...prev, true]);
+  }, [lesson, isReadOnly]);
+
   const handleSubmitAnswers = async () => {
     if (!lesson || isReadOnly) return;
     setEvaluating(true);
@@ -324,6 +346,7 @@ export default function ReadLessonPage() {
     const steps = [
       { key: "lesson", label: "Article", icon: BookOpen },
       { key: "vocab", label: "Vocabulary", icon: Languages },
+      { key: "grammar", label: "Grammar", icon: BookOpen },
       { key: "questions", label: "Questions", icon: MessageCircleQuestion },
     ];
     const currentIndex = steps.findIndex(s => s.key === progressStep);
@@ -435,9 +458,10 @@ export default function ReadLessonPage() {
     return null;
   }
 
-  const stepOrder: ReadStep[] = ["vocab", "article", "questions", "evaluation"];
+  const stepOrder: ReadStep[] = ["vocab", "article", "grammar", "questions", "evaluation"];
   const currentStepIndex = stepOrder.indexOf(step);
   const allVocabRead = readVocab.every(Boolean);
+  const allGrammarRead = readGrammar.every(Boolean);
   const allQuestionsAnswered = lesson.questions.every((q) => (answers[q.id] ?? "").trim().length > 0);
 
   return (
@@ -609,6 +633,16 @@ export default function ReadLessonPage() {
                 speakText={speakText}
                 stopSpeaking={stopSpeaking}
                 speaking={speaking}
+                onAddVocab={isReadOnly ? undefined : handleAddVocab}
+              />
+            )}
+
+            {step === "grammar" && lesson.grammar && (
+              <GrammarStep
+                grammar={lesson.grammar}
+                readGrammar={readGrammar}
+                setReadGrammar={isReadOnly ? () => {} : setReadGrammar}
+                isReadOnly={isReadOnly}
               />
             )}
 
@@ -657,6 +691,7 @@ export default function ReadLessonPage() {
                       >
                         {s === "vocab" && "Vocabulary"}
                         {s === "article" && "Article"}
+                        {s === "grammar" && "Grammar"}
                         {s === "questions" && "Questions"}
                         {s === "evaluation" && "Evaluation"}
                       </button>
@@ -671,7 +706,8 @@ export default function ReadLessonPage() {
                     disabled={step === "vocab"}
                     onClick={() => {
                       if (step === "article") setStep("vocab");
-                      if (step === "questions") setStep("article");
+                      if (step === "grammar") setStep("article");
+                      if (step === "questions") setStep("grammar");
                       if (step === "evaluation") setStep("questions");
                     }}
                   >
@@ -684,16 +720,19 @@ export default function ReadLessonPage() {
                       disabled={
                         (step === "vocab" && !allVocabRead) ||
                         (step === "article" && !articleReadOnce) ||
+                        (step === "grammar" && !allGrammarRead) ||
                         (step === "questions" && (!allQuestionsAnswered || evaluating))
                       }
                       onClick={() => {
                         if (step === "vocab") setStep("article");
-                        else if (step === "article") setStep("questions");
+                        else if (step === "article") setStep("grammar");
+                        else if (step === "grammar") setStep("questions");
                         else if (step === "questions") handleSubmitAnswers();
                       }}
                     >
                       {step === "vocab" && "Start reading"}
-                      {step === "article" && "Next: Questions"}
+                      {step === "article" && "Next: Grammar"}
+                      {step === "grammar" && "Next: Questions"}
                       {step === "questions" && (evaluating ? "Evaluating..." : "Submit answers")}
                     </button>
                   )}

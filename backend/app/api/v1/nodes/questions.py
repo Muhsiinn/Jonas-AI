@@ -32,17 +32,23 @@ async def make_question(state:State):
     user_region = current_user.profile.user_region
     lesson_text = " ".join(state['lesson'].paragraphs)
 
+    grammar_rules = state.get('grammar', [])
+    grammar_text = "\n".join([
+        f"- {g.rule}: {g.explanation}" 
+        for g in grammar_rules
+    ]) if grammar_rules else "No grammar rules available"
+
     p = yaml_prompts['question_prompt']
 
     system_prompt = (
-    p.replace("{{ situation }}", daily_situation)
-     .replace("{{ user_reading_level }}", user_reading_level)
-     .replace("{{ user_speaking_level }}", user_speaking_level)
-     .replace("{{ user_region }}", user_region)
-     .replace("{{ user_goal }}", user_goal)
-     .replace("{{ lesson_text }}", lesson_text)
-)
-
+        p.replace("{{ situation }}", daily_situation)
+        .replace("{{ user_reading_level }}", user_reading_level)
+        .replace("{{ user_speaking_level }}", user_speaking_level)
+        .replace("{{ user_region }}", user_region)
+        .replace("{{ user_goal }}", user_goal)
+        .replace("{{ lesson_text }}", lesson_text)
+        .replace("{{ grammar_rules }}", grammar_text)
+    )
 
     messages = [
         {
@@ -52,7 +58,6 @@ async def make_question(state:State):
     ]
 
     result = await chat.with_structured_output(QuestionOutput).ainvoke(messages)
-    
     
     return {
         "questions": result.questions

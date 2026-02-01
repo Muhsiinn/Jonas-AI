@@ -75,6 +75,17 @@ export interface Question {
   question: string;
 }
 
+export interface GrammarExample {
+  sentence: string;
+  explanation: string;
+}
+
+export interface GrammarItem {
+  rule: string;
+  explanation: string;
+  examples: GrammarExample[];
+}
+
 export interface LessonProgress {
   current_step: string;
   vocab_read: boolean[];
@@ -88,6 +99,7 @@ export interface AgentOutput {
   lesson: LessonOutput;
   questions: Question[];
   vocabs: VocabItem[];
+  grammar?: GrammarItem[];
   progress?: LessonProgress;
   completed?: boolean;
   is_today?: boolean;
@@ -343,6 +355,10 @@ class ApiClient {
 
   async getLessonById(lessonId: number): Promise<AgentOutput> {
     return this.request<AgentOutput>(`/api/v1/agents/lessons/${lessonId}`);
+  }
+
+  async explainText(text: string): Promise<VocabItem> {
+    return this.request<VocabItem>(`/api/v1/agents/explain?text=${encodeURIComponent(text)}`);
   }
 }
 

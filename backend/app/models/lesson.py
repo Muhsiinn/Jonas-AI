@@ -12,6 +12,7 @@ class Lesson(Base):
     title = Column(String, nullable=False)
     vocab = Column(JSONB, nullable=False)
     paragraphs = Column(ARRAY(String), nullable=False)
+    grammar = Column(JSONB, nullable=True)
     questions = Column(JSONB, nullable=False)
     answers = Column(JSONB, nullable=True)
     score = Column(Integer, nullable=True)

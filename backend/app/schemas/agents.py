@@ -29,10 +29,23 @@ class VocabItem(BaseModel):
 class Vocabs(BaseModel):
     vocab: List[VocabItem]
 
+class GrammarExample(BaseModel):
+    sentence: str
+    explanation: str
+
+class GrammarItem(BaseModel):
+    rule: str
+    explanation: str
+    examples: List[GrammarExample]
+
+class GrammarOutput(BaseModel):
+    grammar: List[GrammarItem]
+
 class AgentOutput(BaseModel):
     lesson : LessonOutput
     questions : List[Question]
     vocabs : List[VocabItem]
+    grammar : List[GrammarItem]
     
 
 class State(TypedDict):
@@ -43,6 +56,7 @@ class State(TypedDict):
     daily_situation : str 
     current_user : str | None 
     vocabs : List[VocabItem]
+    grammar : List[GrammarItem]
 
 class SitationOutput(BaseModel):
     situation : str

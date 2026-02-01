@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { Minus, Plus, Volume2, Square } from "lucide-react";
-import { VocabItem } from "@/lib/api";
+import { Minus, Plus, Volume2, Square, Loader2, BookOpen } from "lucide-react";
+import { VocabItem, apiClient } from "@/lib/api";
 
 interface ArticleStepProps {
   paragraphs: string[];
@@ -14,6 +14,7 @@ interface ArticleStepProps {
   speakText: (text: string) => void;
   stopSpeaking: () => void;
   speaking: boolean;
+  onAddVocab?: (vocab: VocabItem) => void;
 }
 
 interface HighlightedTextProps {
@@ -172,12 +173,17 @@ export function ArticleStep({
   speakText,
   stopSpeaking,
   speaking,
+  onAddVocab,
 }: ArticleStepProps) {
   const [speakingParagraph, setSpeakingParagraph] = useState<number | null>(null);
   const [currentSentence, setCurrentSentence] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const sentenceQueueRef = useRef<string[]>([]);
   const isPlayingRef = useRef(false);
+  
+  const [selection, setSelection] = useState<{ text: string; x: number; y: number } | null>(null);
+  const [explaining, setExplaining] = useState(false);
+  const [explainResult, setExplainResult] = useState<VocabItem | null>(null);
 
   const articleTextSizeClass =
     articleFontSize === "sm"
@@ -264,6 +270,59 @@ export function ArticleStep({
 
   const isCurrentlyPlaying = speakingParagraph !== null;
 
+  const handleTextSelect = useCallback(() => {
+    const selected = window.getSelection();
+    if (selected && selected.toString().trim().length > 0 && selected.toString().trim().length < 100) {
+      const range = selected.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      setSelection({
+        text: selected.toString().trim(),
+        x: rect.left + rect.width / 2,
+        y: rect.bottom + 8,
+      });
+      setExplainResult(null);
+    }
+  }, []);
+
+  const handleClickOutside = useCallback(() => {
+    setTimeout(() => {
+      const selected = window.getSelection();
+      if (!selected || selected.toString().trim().length === 0) {
+        setSelection(null);
+        setExplainResult(null);
+      }
+    }, 100);
+  }, []);
+
+  const handleReadSelection = useCallback(() => {
+    if (selection) {
+      speakText(selection.text);
+    }
+  }, [selection, speakText]);
+
+  const handleExplainSelection = useCallback(async () => {
+    if (!selection) return;
+    
+    setExplaining(true);
+    try {
+      const result = await apiClient.explainText(selection.text);
+      setExplainResult(result);
+      
+      if (onAddVocab && result.term && result.meaning) {
+        onAddVocab(result);
+      }
+    } catch (err) {
+      console.error("Failed to explain:", err);
+    } finally {
+      setExplaining(false);
+    }
+  }, [selection, onAddVocab]);
+
+  useEffect(() => {
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [handleClickOutside]);
+
   return (
     <div className="flex-1 overflow-y-auto p-8">
       <div className="max-w-3xl space-y-4">
@@ -330,7 +389,79 @@ export function ArticleStep({
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border-2 border-cream-dark px-8 py-6 space-y-6">
+        <div 
+          className="bg-white rounded-2xl border-2 border-cream-dark px-8 py-6 space-y-6 relative"
+          onMouseUp={handleTextSelect}
+          onTouchEnd={handleTextSelect}
+        >
+          {selection && (
+            <div 
+              className="fixed z-50 bg-white rounded-xl shadow-xl border-2 border-cream-dark p-3 min-w-[200px]"
+              style={{ 
+                left: Math.min(Math.max(selection.x, 120), window.innerWidth - 120), 
+                top: selection.y, 
+                transform: 'translateX(-50%)' 
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {explainResult ? (
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-[family-name:var(--font-fraunces)] text-sm font-bold text-foreground">
+                      {explainResult.term}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => speakText(explainResult.term)}
+                      className="w-7 h-7 rounded-full flex items-center justify-center bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors shrink-0"
+                    >
+                      <Volume2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <p className="font-[family-name:var(--font-dm-sans)] text-sm text-gray-700">
+                    {explainResult.meaning}
+                  </p>
+                  {explainResult.example && (
+                    <div className="bg-cream/50 rounded-lg px-2.5 py-1.5 border border-cream-dark/30">
+                      <p className="font-[family-name:var(--font-dm-sans)] text-[10px] text-gray-500 mb-0.5">Example</p>
+                      <p className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-700 italic">
+                        &ldquo;{explainResult.example}&rdquo;
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <p className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-600 truncate max-w-[100px]">
+                    &ldquo;{selection.text}&rdquo;
+                  </p>
+                  <div className="flex items-center gap-1.5 ml-auto">
+                    <button
+                      type="button"
+                      onClick={handleReadSelection}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors text-xs font-[family-name:var(--font-dm-sans)]"
+                    >
+                      <Volume2 className="w-3.5 h-3.5" />
+                      Read
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExplainSelection}
+                      disabled={explaining}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors text-xs font-[family-name:var(--font-dm-sans)] disabled:opacity-50"
+                    >
+                      {explaining ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <BookOpen className="w-3.5 h-3.5" />
+                      )}
+                      Meaning
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           {paragraphs.map((p, idx) => {
             const isCurrentSpeaking = speakingParagraph === idx;
             

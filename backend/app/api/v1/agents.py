@@ -39,6 +39,7 @@ async def make_lesson(current_user: User = Depends(get_current_user), db:Session
                 'paragraphs': lesson_exists.paragraphs
             },
             'vocabs': lesson_exists.vocab,
+            'grammar': lesson_exists.grammar or [],
             'questions': lesson_exists.questions,
             'progress': lesson_exists.progress or {},
             'completed': lesson_exists.completed,
@@ -93,6 +94,8 @@ async def make_lesson(current_user: User = Depends(get_current_user), db:Session
                     yield f"data: {json.dumps({'type': 'progress', 'step': 'lesson', 'message': 'Article generated!'})}\n\n"
                 elif node_name == "vocab_maker":
                     yield f"data: {json.dumps({'type': 'progress', 'step': 'vocab', 'message': 'Vocabulary generated!'})}\n\n"
+                elif node_name == "grammar_maker":
+                    yield f"data: {json.dumps({'type': 'progress', 'step': 'grammar', 'message': 'Grammar extracted!'})}\n\n"
                 elif node_name == "question_maker":
                     yield f"data: {json.dumps({'type': 'progress', 'step': 'questions', 'message': 'Questions generated!'})}\n\n"
 
@@ -100,6 +103,7 @@ async def make_lesson(current_user: User = Depends(get_current_user), db:Session
             user_id=user_id,
             vocab=[v.model_dump() for v in final_state['vocabs']],
             paragraphs=list(final_state['lesson'].paragraphs),
+            grammar=[g.model_dump() for g in final_state['grammar']],
             questions=[q.model_dump() for q in final_state['questions']],
             title=final_state['lesson'].title,
         )
@@ -109,6 +113,7 @@ async def make_lesson(current_user: User = Depends(get_current_user), db:Session
         complete_data = {
             'lesson': final_state['lesson'].model_dump(),
             'vocabs': [v.model_dump() for v in final_state['vocabs']],
+            'grammar': [g.model_dump() for g in final_state['grammar']],
             'questions': [q.model_dump() for q in final_state['questions']]
         }
         yield f"data: {json.dumps({'type': 'complete', 'data': complete_data}, ensure_ascii=False)}\n\n"
@@ -213,6 +218,26 @@ async def text_to_speech(
         headers={"Cache-Control": "public, max-age=86400"}
     )
 
+@router.get("/explain")
+async def explain_text(
+    text: str = Query(..., description="German text to explain"),
+    current_user: User = Depends(get_current_user)
+):
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        encoded = quote(text)
+        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=de&tl=en&dt=t&q={encoded}"
+        
+        response = await client.get(url, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        })
+        
+        if response.status_code == 200:
+            data = response.json()
+            translation = "".join([part[0] for part in data[0] if part[0]])
+            return {"term": text, "meaning": translation, "example": ""}
+        
+        return {"term": text, "meaning": "Translation unavailable", "example": ""}
+
 @router.put("/progress")
 async def update_progress(
     request: UpdateProgressRequest,
@@ -291,6 +316,7 @@ async def get_lesson_by_id(
             'paragraphs': lesson.paragraphs
         },
         'vocabs': lesson.vocab,
+        'grammar': lesson.grammar or [],
         'questions': lesson.questions,
         'progress': lesson.progress or {},
         'completed': lesson.completed,
