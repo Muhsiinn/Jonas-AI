@@ -6,10 +6,9 @@ from app.core.database import get_db
 from app.core.security import verify_password, get_password_hash, create_access_token, generate_verification_token, verify_token
 from app.core.config import settings
 from app.core.email import send_verification_email
-from app.models.user import User
-from app.schemas.auth import LoginRequest, SignupRequest, ResendVerificationRequest
-from app.schemas.user import Token, UserResponse
-from fastapi.security import HTTPBearer
+from app.models.user_model import User
+from app.schemas.auth_schema import SignupRequest, ResendVerificationRequest
+from app.schemas.user_schema import Token, UserResponse
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")

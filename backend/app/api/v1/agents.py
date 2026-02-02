@@ -1,27 +1,27 @@
-from fastapi import APIRouter, Depends, HTTPException,status,Query,Request
+from fastapi import APIRouter, Depends, HTTPException,status,Query
 from fastapi.responses import StreamingResponse, Response
 from app.core.llm import LLMClient
 from app.api.v1.auth import get_current_user
-from app.schemas.agents import LessonOutput
-from app.models.user import User
+from app.models.user_model import User
 from app.core.database import get_db
-from app.models import DailySituation
-from datetime import timedelta,datetime,date
+from app.models.daily_situation_model import DailySituation
+from datetime import timedelta,datetime,date,timezone
 from app.core.utils import open_yaml
 from sqlalchemy.orm import Session
-from app.schemas.agents import State
-from app.schemas.agents import AgentOutput, EvaluateLessonOutput, EvaluateLessonRequest, UpdateProgressRequest
+from app.schemas.agents_schema import EvaluateLessonOutput, EvaluateLessonRequest, UpdateProgressRequest
 import json
 import httpx
 from urllib.parse import quote
-from app.models.lesson import Lesson
-from app.core.workflow import build_workflow
+from app.models.lesson_model import Lesson
+from app.workflows.lesson_workflow import build_workflow
+from app.api.v1.stats import update_user_stats
+
 router  = APIRouter()
 
 @router.get("/create_lesson")
 async def make_lesson(current_user: User = Depends(get_current_user), db:Session = Depends(get_db)): 
     today = date.today()
-    start = datetime.combine(today, datetime.min.time())
+    start = datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc)
     end = start + timedelta(days=1) 
 
     lesson_exists = db.query(Lesson).filter(
@@ -169,6 +169,9 @@ async def evaluate_lesson(
     db_lesson.completed = True
     db.commit()
     
+    points_earned = result.score + 10
+    update_user_stats(db, current_user.id, points_earned, "lesson", db_lesson.id)
+    
     return result
 
 @router.get("/tts")
@@ -245,7 +248,7 @@ async def update_progress(
     db: Session = Depends(get_db)
 ):
     today = date.today()
-    start = datetime.combine(today, datetime.min.time())
+    start = datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc)
     end = start + timedelta(days=1)
 
     lesson = db.query(Lesson).filter(
@@ -304,7 +307,7 @@ async def get_lesson_by_id(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lesson not found")
 
     today = date.today()
-    start = datetime.combine(today, datetime.min.time())
+    start = datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc)
     end = start + timedelta(days=1)
     is_today = lesson.created_at >= start and lesson.created_at < end
 

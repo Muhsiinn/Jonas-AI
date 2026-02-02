@@ -1,7 +1,10 @@
- "use client";
+"use client";
 
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { BookOpen, MessageSquare, PenTool } from "lucide-react";
+import { apiClient } from "@/lib/api";
+import { ActivityCompletion } from "@/types/api";
 
 type ActivityIcon = typeof BookOpen;
 
@@ -50,7 +53,7 @@ function DashboardActionCard({ icon, titleLine1, titleLine2, completed, onClick 
           {completed ? "Done today" : "Not done"}
         </span>
         <span className="font-[family-name:var(--font-dm-sans)] text-[11px] text-gray-500">
-          {completed ? "Great, keep the streak going." : "Perfect for today’s situation."}
+          {completed ? "Great, keep the streak going." : "Perfect for today's situation."}
         </span>
       </div>
 
@@ -63,6 +66,35 @@ function DashboardActionCard({ icon, titleLine1, titleLine2, completed, onClick 
 
 export function DashboardActions() {
   const router = useRouter();
+  const [activities, setActivities] = useState<ActivityCompletion | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchActivities = async () => {
+      try {
+        const data = await apiClient.getTodayActivities();
+        setActivities(data);
+      } catch (error) {
+        console.error("Error fetching today's activities:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchActivities();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex-1 overflow-y-auto p-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-white rounded-2xl p-5 shadow-sm border-2 border-cream-dark min-h-[190px] animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-y-auto p-8">
@@ -71,11 +103,21 @@ export function DashboardActions() {
           icon={BookOpen}
           titleLine1="Read"
           titleLine2="Lesson"
-          completed={false}
-          onClick={() => router.push("/dashboard/read")}
+          completed={activities?.lesson_completed ?? false}
+          onClick={() => router.push("/read")}
         />
-        <DashboardActionCard icon={MessageSquare} titleLine1="AI" titleLine2="Roleplay" completed={false} />
-        <DashboardActionCard icon={PenTool} titleLine1="Write in" titleLine2="German" completed={false} />
+        <DashboardActionCard
+          icon={MessageSquare}
+          titleLine1="AI"
+          titleLine2="Roleplay"
+          completed={activities?.roleplay_completed ?? false}
+        />
+        <DashboardActionCard
+          icon={PenTool}
+          titleLine1="Write in"
+          titleLine2="German"
+          completed={activities?.writing_completed ?? false}
+        />
       </div>
     </div>
   );

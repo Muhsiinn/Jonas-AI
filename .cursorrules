@@ -1,0 +1,376 @@
+# Jonas AI - Cursor Rules
+
+## Project Structure
+
+### Client (Next.js App Router)
+
+#### Folder Organization
+```
+client/src/
+├── app/                          # Next.js App Router
+│   ├── (auth)/                   # Auth route group
+│   │   ├── layout.tsx
+│   │   ├── login/page.tsx
+│   │   ├── signup/page.tsx
+│   │   ├── verify-email/page.tsx
+│   │   └── onboarding/page.tsx
+│   ├── (dashboard)/              # Protected dashboard route group
+│   │   ├── layout.tsx            # Handles auth checks
+│   │   ├── dashboard/page.tsx    # Main dashboard
+│   │   └── read/                 # Lesson reading
+│   │       ├── page.tsx
+│   │       └── components/        # Page-specific components
+│   ├── layout.tsx                # Root layout
+│   └── page.tsx                  # Landing page
+│
+├── components/
+│   ├── ui/                       # Base UI primitives (Button, Input, etc.)
+│   ├── layout/                   # Layout components (Navbar, Sidebar, Footer)
+│   ├── features/                 # Feature-specific components
+│   │   ├── dashboard/           # Dashboard feature components
+│   │   └── landing/             # Landing page components
+│   └── common/                   # Shared reusable components
+│
+├── lib/
+│   ├── api/                      # API client
+│   │   ├── client.ts            # ApiClient class
+│   │   ├── endpoints.ts         # API endpoint constants
+│   │   └── index.ts             # Exports
+│   ├── hooks/                    # Custom React hooks
+│   │   ├── useAuth.ts
+│   │   ├── useLesson.ts
+│   │   ├── useStats.ts
+│   │   └── index.ts
+│   ├── utils/                    # Utility functions
+│   │   ├── format.ts            # Date/number formatting
+│   │   ├── validation.ts        # Form validation
+│   │   └── index.ts
+│   └── config/                   # Configuration
+│       ├── env.ts               # Environment config
+│       └── routes.ts            # Route constants
+│
+├── types/                        # TypeScript types
+│   ├── user.ts                  # User-related types
+│   ├── lesson.ts                # Lesson-related types
+│   ├── api.ts                   # API request/response types
+│   └── index.ts                 # Centralized exports
+│
+└── contexts/                     # React contexts
+    └── AuthContext.tsx
+```
+
+### Backend (FastAPI)
+
+#### Folder Organization
+```
+backend/app/
+├── api/                          # API layer (routes only)
+│   ├── deps.py                   # Dependencies (auth, db, etc.)
+│   └── v1/
+│       └── routes/               # Route handlers
+│
+├── core/                         # Core infrastructure
+│   ├── config.py
+│   ├── database.py
+│   ├── security.py
+│   └── exceptions.py
+│
+├── domain/                       # SQLAlchemy models
+│   ├── base.py
+│   └── [domain]/                 # Grouped by domain
+│       └── model.py
+│
+├── schemas/                      # Pydantic schemas
+│   ├── [domain]/
+│   │   ├── request.py
+│   │   └── response.py
+│
+├── services/                     # Business logic
+│   └── [domain]_service.py
+│
+├── repositories/                 # Data access layer
+│   └── [domain]_repository.py
+│
+├── workflows/                    # LangGraph workflows
+│   ├── [workflow]_workflow.py
+│   └── nodes/                    # Workflow nodes
+│       └── [node]_node.py
+│
+├── external/                     # External integrations
+│   ├── email/
+│   └── llm/
+│
+└── utils/                        # Shared utilities
+```
+
+## Naming Conventions
+
+### Files
+- **Components**: PascalCase (`Button.tsx`, `DashboardActions.tsx`)
+- **Hooks**: camelCase with `use` prefix (`useAuth.ts`, `useLesson.ts`)
+- **Utils**: camelCase (`format.ts`, `validation.ts`)
+- **Types**: camelCase (`user.ts`, `lesson.ts`)
+- **Services**: snake_case with `_service` suffix (`auth_service.py`)
+- **Repositories**: snake_case with `_repository` suffix (`user_repository.py`)
+- **Models**: snake_case (`user.py`, `lesson.py`)
+- **Workflow Nodes**: snake_case with `_node` suffix (`lesson_node.py`)
+
+### Classes
+- **React Components**: PascalCase (`Button`, `DashboardActions`)
+- **Services**: PascalCase + "Service" (`AuthService`, `UserService`)
+- **Repositories**: PascalCase + "Repository" (`UserRepository`)
+- **Models**: PascalCase, singular (`User`, `Lesson`)
+- **Schemas**: PascalCase with descriptive suffix (`CreateUserRequest`, `UserResponse`)
+
+### Functions/Methods
+- **React Hooks**: camelCase with `use` prefix (`useAuth`, `useLesson`)
+- **Functions**: snake_case (Python) or camelCase (TypeScript)
+- **Action verbs**: `create_`, `update_`, `delete_`, `get_`, `list_`
+
+### Constants
+- **TypeScript/JavaScript**: UPPER_SNAKE_CASE (`API_ENDPOINTS`, `ROUTES`)
+- **Python**: UPPER_SNAKE_CASE (`MAX_RETRY_ATTEMPTS`)
+
+## Import Patterns
+
+### Client (TypeScript/React)
+```typescript
+// Types - from types/ directory
+import { User, UserStats } from '@/types/user';
+import { LessonOutput, Question } from '@/types/lesson';
+import { LoginRequest, AuthResponse } from '@/types/api';
+
+// API Client - from lib/api
+import { apiClient, API_ENDPOINTS } from '@/lib/api';
+
+// Hooks - from lib/hooks
+import { useAuth } from '@/lib/hooks/useAuth';
+import { useLesson } from '@/lib/hooks/useLesson';
+
+// Utils - from lib/utils
+import { formatDate } from '@/lib/utils/format';
+import { isValidEmail } from '@/lib/utils/validation';
+
+// Config - from lib/config
+import { getApiBaseUrl } from '@/lib/config/env';
+import { ROUTES } from '@/lib/config/routes';
+
+// Components - from components/
+import { Button } from '@/components/ui/Button';
+import { Navbar } from '@/components/layout/Navbar';
+import { DashboardActions } from '@/components/features/dashboard/DashboardActions';
+```
+
+### Backend (Python)
+```python
+# Models - from domain/
+from app.domain.user.model import User
+from app.domain.lesson.model import Lesson
+
+# Schemas - from schemas/
+from app.schemas.user.request import CreateUserRequest
+from app.schemas.user.response import UserResponse
+
+# Services - from services/
+from app.services.user_service import UserService
+
+# Repositories - from repositories/
+from app.repositories.user_repository import UserRepository
+
+# Workflows - from workflows/
+from app.workflows.lesson_workflow import build_workflow
+from app.workflows.nodes.lesson_node import make_lesson
+```
+
+## Component Organization Rules
+
+### 1. UI Components (`components/ui/`)
+- Base, reusable UI primitives
+- No business logic
+- Examples: `Button`, `Input`, `Select`, `Card`
+
+### 2. Layout Components (`components/layout/`)
+- Layout-level components
+- Examples: `Navbar`, `Sidebar`, `Footer`
+
+### 3. Feature Components (`components/features/`)
+- Feature-specific components
+- Grouped by feature domain
+- Examples: `features/dashboard/DashboardActions`, `features/landing/Hero`
+
+### 4. Page-Specific Components
+- Components used only by a specific page
+- Located in `app/[route]/components/`
+- Examples: `app/(dashboard)/read/components/VocabStep`
+
+## Route Organization Rules
+
+### Route Groups
+- Use `(auth)/` for authentication routes
+- Use `(dashboard)/` for protected dashboard routes
+- Route groups don't affect URL structure
+
+### Layouts
+- `app/layout.tsx` - Root layout (providers, fonts, global styles)
+- `app/(auth)/layout.tsx` - Auth layout (if needed)
+- `app/(dashboard)/layout.tsx` - Dashboard layout (handles auth checks)
+
+### Route Protection
+- Authentication checks in `(dashboard)/layout.tsx`
+- Individual pages don't need to check auth if layout handles it
+
+## API Client Patterns
+
+### Endpoint Constants
+```typescript
+// lib/api/endpoints.ts
+export const API_ENDPOINTS = {
+  AUTH: {
+    LOGIN: '/api/v1/auth/login',
+    SIGNUP: '/api/v1/auth/signup',
+  },
+  AGENTS: {
+    CREATE_LESSON: '/api/v1/agents/create_lesson',
+    LESSON_BY_ID: (id: number) => `/api/v1/agents/lessons/${id}`,
+  },
+} as const;
+```
+
+### API Client Usage
+```typescript
+// Always use apiClient, never direct fetch
+import { apiClient } from '@/lib/api';
+
+// Use endpoint constants
+import { API_ENDPOINTS } from '@/lib/api';
+const response = await apiClient.request(API_ENDPOINTS.AUTH.LOGIN, {...});
+```
+
+## Type Organization Rules
+
+### Type Files
+- `types/user.ts` - User, UserProfile, UserStats, etc.
+- `types/lesson.ts` - Lesson, Question, Grammar, etc.
+- `types/api.ts` - API request/response types, shared types
+
+### Type Exports
+- Always export from `types/index.ts` for centralized access
+- Use `export * from './user'` pattern
+
+## Hook Patterns
+
+### Custom Hooks
+- Extract reusable logic into hooks
+- Hooks should be in `lib/hooks/`
+- Naming: `use[Feature]` (e.g., `useAuth`, `useLesson`)
+
+### Hook Structure
+```typescript
+export function useFeature() {
+  const [state, setState] = useState();
+  const [loading, setLoading] = useState(false);
+  
+  const fetchData = useCallback(async () => {
+    // Implementation
+  }, []);
+  
+  return {
+    state,
+    loading,
+    fetchData,
+  };
+}
+```
+
+## Service Layer Patterns (Backend)
+
+### Service Responsibilities
+- Business logic
+- Orchestration
+- Validation
+- Error handling
+
+### Repository Responsibilities
+- Data access only
+- Database queries
+- No business logic
+
+### Example Pattern
+```python
+# Service
+class UserService:
+    def __init__(self, user_repo: UserRepository):
+        self.user_repo = user_repo
+    
+    async def create_user(self, data: CreateUserRequest) -> UserResponse:
+        # Business logic here
+        user = await self.user_repo.create(...)
+        return UserResponse.from_orm(user)
+
+# Repository
+class UserRepository:
+    async def create(self, data: dict) -> User:
+        # Database operations only
+        return await db.add(User(**data))
+```
+
+## Workflow Organization (Backend)
+
+### Workflow Files
+- `workflows/[name]_workflow.py` - Workflow builder function
+- `workflows/nodes/[name]_node.py` - Individual workflow nodes
+
+### Node Naming
+- Functions: `make_[feature]` (e.g., `make_lesson`, `make_vocab`)
+- Files: `[feature]_node.py` (e.g., `lesson_node.py`)
+
+## Code Style Rules
+
+### TypeScript/React
+- Use functional components
+- Use TypeScript interfaces for props
+- Prefer `const` over `let`
+- Use arrow functions for callbacks
+- Destructure props in function signature
+
+### Python
+- Use type hints
+- Follow PEP 8
+- Use async/await for async operations
+- Use dependency injection for services/repositories
+
+## File Organization Rules
+
+### Do's
+✅ Group related files by domain/feature
+✅ Use index.ts/index.py for clean exports
+✅ Keep components close to where they're used
+✅ Separate concerns (UI, logic, data)
+
+### Don'ts
+❌ Don't mix API routes with business logic
+❌ Don't put workflow nodes in API folder
+❌ Don't create deep nesting (max 3-4 levels)
+❌ Don't mix types with implementation
+
+## Testing Structure (Future)
+
+```
+tests/
+├── unit/
+│   ├── services/
+│   ├── repositories/
+│   └── hooks/
+├── integration/
+│   └── api/
+└── fixtures/
+```
+
+## Notes
+
+- Always use absolute imports with `@/` alias in client
+- Always use relative imports in backend (from `app.`)
+- Keep route groups for organization, not URL structure
+- Layouts handle shared logic (auth, loading states)
+- Components should be small and focused
+- Services handle business logic, repositories handle data access

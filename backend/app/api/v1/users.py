@@ -1,12 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models.user import User
-from app.schemas.user import UserResponse
+from app.models.user_model import User
+from app.schemas.user_schema import UserResponse
 from app.api.v1.auth import get_current_user
-from app.schemas.user import UserProfileRequest ,SituationOutput, UserProfileResponse
-from app.models.user_profile import UserProfile
-from app.models.daily_situation import DailySituation
+from app.schemas.user_schema import UserProfileRequest ,SituationOutput, UserProfileResponse
+from app.models.user_profile_model import UserProfile
+from app.models.daily_situation_model import DailySituation
 from datetime import date, datetime, timedelta
 from app.core.llm import LLMClient
 from app.core.utils import open_yaml
@@ -38,8 +38,6 @@ async def create_user_profile(request: UserProfileRequest,current_user:User = De
     db.refresh(user_profile)
     
     return user_profile
-
-
 
 @router.get("/dailysituation",response_model=SituationOutput,status_code=status.HTTP_200_OK)
 async def get_daily_situation(current_user: User = Depends(get_current_user), db:Session = Depends(get_db)):
