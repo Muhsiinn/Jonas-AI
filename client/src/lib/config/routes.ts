@@ -6,4 +6,5 @@ export const ROUTES = {
   ONBOARDING: '/onboarding',
   DASHBOARD: '/dashboard',
   READ: '/read',
+  ROLEPLAY: '/roleplay',
 } as const;
