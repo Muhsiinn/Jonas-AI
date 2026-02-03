@@ -90,23 +90,22 @@ async def chat(state:RoleplayState):
     chat = llm.get_client("tngtech/tng-r1t-chimera:free")
     response = await chat.ainvoke(messages)
 
+    cleaned_reply = response.content.strip() if response.content else ""
 
     history.append(ChatMessage(
         role="assistant",
-        content=response.content
+        content=cleaned_reply
     ))
 
     return {
-        "reply": response.content,
+        "reply": cleaned_reply,
         "chat_history": history,
         "turn_count": state.turn_count + 1
     }
 def should_continue(state: RoleplayState):
     if state.done:
         return "end"
-    if state.turn_count < state.max_turns:
-        return "continue"
-    return "end"
+    return "continue"
 
 
 

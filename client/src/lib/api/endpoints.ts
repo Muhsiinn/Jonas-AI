@@ -26,4 +26,12 @@ export const API_ENDPOINTS = {
     LEADERBOARD: '/api/v1/stats/leaderboard',
     TODAY_ACTIVITIES: '/api/v1/stats/today-activities',
   },
+  ROLEPLAY: {
+    GOAL: '/api/v1/roleplay/goal',
+    SESSION: '/api/v1/roleplay/session',
+    CHAT: '/api/v1/roleplay/chat',
+    MESSAGES: '/api/v1/roleplay/messages',
+    HISTORY: '/api/v1/roleplay/history',
+    FINISH: '/api/v1/roleplay/finish',
+  },
 } as const;

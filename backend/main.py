@@ -21,7 +21,7 @@ app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["users"])
 app.include_router(agents.router, prefix="/api/v1/agents", tags=["agents"])
 app.include_router(stats.router, prefix="/api/v1/stats", tags=["stats"])
-app.include_router(roleplay.router, prefix="/api/v1/goal", tags=["stats"])
+app.include_router(roleplay.router, prefix="/api/v1/roleplay", tags=["roleplay"])
 
 @app.get("/")
 async def root():

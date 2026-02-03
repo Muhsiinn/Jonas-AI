@@ -25,6 +25,14 @@ import {
   LessonHistoryItem,
   VocabItem,
 } from '@/types/lesson';
+import {
+  RoleplaySessionResponse,
+  RoleplayMessageResponse,
+  RoleplayChatRequest,
+  RoleplayChatResponse,
+  RoleplayHistoryResponse,
+  RoleplayFinishResponse,
+} from '@/types/api';
 import { API_ENDPOINTS } from './endpoints';
 import { getApiBaseUrl } from '@/lib/config/env';
 
@@ -284,6 +292,35 @@ class ApiClient {
 
   async getTodayActivities(): Promise<ActivityCompletion> {
     return this.request<ActivityCompletion>(API_ENDPOINTS.STATS.TODAY_ACTIVITIES);
+  }
+
+  async createRoleplayGoal(): Promise<{ goal: string; user_role: string; ai_role: string }> {
+    return this.request<{ goal: string; user_role: string; ai_role: string }>(API_ENDPOINTS.ROLEPLAY.GOAL);
+  }
+
+  async getRoleplaySession(): Promise<RoleplaySessionResponse> {
+    return this.request<RoleplaySessionResponse>(API_ENDPOINTS.ROLEPLAY.SESSION);
+  }
+
+  async sendRoleplayMessage(request: RoleplayChatRequest): Promise<RoleplayChatResponse> {
+    return this.request<RoleplayChatResponse>(API_ENDPOINTS.ROLEPLAY.CHAT, {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  async getRoleplayMessages(): Promise<RoleplayMessageResponse[]> {
+    return this.request<RoleplayMessageResponse[]>(API_ENDPOINTS.ROLEPLAY.MESSAGES);
+  }
+
+  async getRoleplayHistory(): Promise<RoleplayHistoryResponse[]> {
+    return this.request<RoleplayHistoryResponse[]>(API_ENDPOINTS.ROLEPLAY.HISTORY);
+  }
+
+  async finishRoleplaySession(): Promise<RoleplayFinishResponse> {
+    return this.request<RoleplayFinishResponse>(API_ENDPOINTS.ROLEPLAY.FINISH, {
+      method: 'POST',
+    });
   }
 }
 

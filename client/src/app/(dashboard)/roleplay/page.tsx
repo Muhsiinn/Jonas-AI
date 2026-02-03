@@ -5,17 +5,11 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2, ChevronLeft, ChevronRight, Lock, Calendar } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiClient, API_ENDPOINTS } from "@/lib/api";
+import { apiClient } from "@/lib/api";
 import { getApiBaseUrl } from "@/lib/config/env";
-import {
-  roleplaySessionMock,
-  messagesMock,
-  evaluationMock,
-  initialGoalReachedMock,
-  initialSessionEndedMock,
-  roleplayHistoryMock,
-} from "@/mock/roleplay-session";
-import { RoleplayMessage, RoleplayHistoryItem } from "@/types/roleplay";
+import { API_ENDPOINTS } from "@/lib/api";
+import { RoleplayMessage, RoleplaySession, RoleplayHistoryItem, RoleplayEvaluation } from "@/types/roleplay";
+import { RoleplayMessageResponse, RoleplaySessionResponse } from "@/types/api";
 import { formatDate } from "@/lib/utils/format";
 import {
   SessionContextCard,
@@ -28,23 +22,136 @@ export default function RoleplayPage() {
   const { logout, isAuthenticated, loading } = useAuth();
   const router = useRouter();
   
-  const [session] = useState(roleplaySessionMock);
-  const [messages, setMessages] = useState<RoleplayMessage[]>(messagesMock);
-  const [goalReached, setGoalReached] = useState(initialGoalReachedMock);
-  const [sessionEnded, setSessionEnded] = useState(initialSessionEndedMock);
-  const [evaluation] = useState(evaluationMock);
+  const [session, setSession] = useState<RoleplaySession | null>(null);
+  const [messages, setMessages] = useState<RoleplayMessage[]>([]);
+  const [goalReached, setGoalReached] = useState(false);
+  const [sessionEnded, setSessionEnded] = useState(false);
+  const [evaluation, setEvaluation] = useState<RoleplayEvaluation | null>(null);
+  const [finishingSession, setFinishingSession] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
-  const [roleplayHistory, setRoleplayHistory] = useState<RoleplayHistoryItem[]>(roleplayHistoryMock);
+  const [roleplayHistory, setRoleplayHistory] = useState<RoleplayHistoryItem[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
   const [speaking, setSpeaking] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [audioRef] = useState<{ current: HTMLAudioElement | null }>({ current: null });
+  const [loadingSession, setLoadingSession] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState<string>("Loading roleplay session...");
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const fetchingRef = useRef(false);
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       router.push("/login");
     }
   }, [loading, isAuthenticated, router]);
+
+  const fetchSession = useCallback(async () => {
+    if (fetchingRef.current) return;
+    
+    try {
+      fetchingRef.current = true;
+      setLoadingSession(true);
+      setSessionError(null);
+      setLoadingMessage("Loading roleplay session...");
+      
+      try {
+        const sessionData = await apiClient.getRoleplaySession();
+        setSession({
+          title: sessionData.title,
+          userRole: sessionData.userRole,
+          aiRole: sessionData.aiRole,
+          learningGoal: sessionData.learningGoal,
+          suggestedVocab: sessionData.suggestedVocab,
+        });
+      } catch (error: any) {
+        if (error.status === 404) {
+          const errorMessage = error.message || "";
+          // If error mentions "lesson", user needs to create a lesson first
+          if (errorMessage.toLowerCase().includes("lesson")) {
+            setSessionError("No lesson found for today. Please create a lesson first from the dashboard.");
+          } else {
+            // Try to create goal if it doesn't exist
+            try {
+              setLoadingMessage("Creating your personalized roleplay...");
+              await new Promise(resolve => setTimeout(resolve, 1500));
+              
+              setLoadingMessage("Creating your roleplay characters...");
+              await new Promise(resolve => setTimeout(resolve, 1500));
+              
+              setLoadingMessage("Creating plot...");
+              await apiClient.createRoleplayGoal();
+              
+              setLoadingMessage("Finalizing your roleplay session...");
+              const sessionData = await apiClient.getRoleplaySession();
+              setSession({
+                title: sessionData.title,
+                userRole: sessionData.userRole,
+                aiRole: sessionData.aiRole,
+                learningGoal: sessionData.learningGoal,
+                suggestedVocab: sessionData.suggestedVocab,
+              });
+            } catch (createError: any) {
+              const createErrorMessage = createError.message || "";
+              if (createErrorMessage.toLowerCase().includes("lesson")) {
+                setSessionError("No lesson found for today. Please create a lesson first from the dashboard.");
+              } else {
+                setSessionError(createError instanceof Error ? createError.message : "Failed to create roleplay session");
+              }
+            }
+          }
+        } else {
+          setSessionError(error instanceof Error ? error.message : "Failed to load session");
+        }
+      }
+    } catch (error) {
+      setSessionError(error instanceof Error ? error.message : "Failed to load session");
+    } finally {
+      setLoadingSession(false);
+      fetchingRef.current = false;
+    }
+  }, []);
+
+  const fetchMessages = useCallback(async () => {
+    try {
+      setLoadingMessages(true);
+      const messagesData = await apiClient.getRoleplayMessages();
+      const formattedMessages: RoleplayMessage[] = messagesData
+        .filter((msg) => msg.speaker === "user" || msg.speaker === "ai") // Only show user and AI messages
+        .map((msg) => ({
+          id: msg.id,
+          speaker: msg.speaker as "ai" | "user",
+          text: msg.text.trim(), // Clean up text - remove leading/trailing whitespace
+          timestamp: new Date(msg.timestamp),
+          hasCorrection: msg.hasCorrection || false,
+        }));
+      setMessages(formattedMessages);
+    } catch (error) {
+      console.error("Failed to fetch messages:", error);
+    } finally {
+      setLoadingMessages(false);
+    }
+  }, []);
+
+  const fetchHistory = useCallback(async () => {
+    try {
+      const history = await apiClient.getRoleplayHistory();
+      setRoleplayHistory(history);
+    } catch (error) {
+      console.error("Failed to fetch history:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!loading && isAuthenticated && !fetchingRef.current) {
+      fetchSession();
+      fetchMessages();
+      fetchHistory();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, isAuthenticated]);
 
   const speakText = useCallback(async (text: string, messageId: string) => {
     if (audioRef.current) {
@@ -81,31 +188,82 @@ export default function RoleplayPage() {
     }
   }, [audioRef]);
 
-  const handleSendMessage = (text: string) => {
-    if (sessionEnded) return;
+  const handleSendMessage = async (text: string) => {
+    if (sessionEnded || !text.trim() || sendingMessage) return;
 
-    const newMessage: RoleplayMessage = {
-      id: Date.now().toString(),
+    const tempUserMessageId = `temp-user-${Date.now()}`;
+    const userMessage: RoleplayMessage = {
+      id: tempUserMessageId,
       speaker: "user",
       text,
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, newMessage]);
+    setMessages((prev) => [...prev, userMessage]);
+    setSendingMessage(true);
 
-    setTimeout(() => {
-      const aiResponse: RoleplayMessage = {
-        id: (Date.now() + 1).toString(),
+    try {
+      const response = await apiClient.sendRoleplayMessage({ user_input: text });
+      
+      if (!response || !response.reply) {
+        throw new Error("No reply received from server");
+      }
+      
+      // Check if evaluation happened (conversation ended)
+      if (response.done && response.evaluation) {
+        setIsEvaluating(true);
+        setEvaluation(response.evaluation);
+        setSessionEnded(true);
+        await fetchHistory();
+        setIsEvaluating(false);
+      }
+      
+      // Clean up the reply - remove leading/trailing whitespace and newlines
+      const cleanedReply = response.reply.trim();
+      
+      // Add AI message optimistically
+      const tempAiMessageId = `temp-ai-${Date.now()}`;
+      const aiMessage: RoleplayMessage = {
+        id: tempAiMessageId,
         speaker: "ai",
-        text: "Das ist eine gute Antwort! Können Sie mir mehr Details geben?",
+        text: cleanedReply,
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, aiResponse]);
-    }, 1000);
+      
+      setMessages((prev) => [...prev, aiMessage]);
+      
+      // Fetch messages from backend to get real IDs and ensure consistency
+      // Small delay to ensure backend has committed
+      setTimeout(async () => {
+        await fetchMessages();
+      }, 500);
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      // Remove the temporary user message on error
+      setMessages((prev) => prev.filter((m) => m.id !== tempUserMessageId));
+      setIsEvaluating(false);
+    } finally {
+      setSendingMessage(false);
+    }
   };
 
-  const handleFinishSession = () => {
-    setSessionEnded(true);
+  const handleFinishSession = async () => {
+    if (finishingSession || sessionEnded) return;
+    
+    setFinishingSession(true);
+    setIsEvaluating(true);
+    try {
+      const response = await apiClient.finishRoleplaySession();
+      setEvaluation(response.evaluation);
+      setSessionEnded(true);
+      await fetchHistory();
+    } catch (error) {
+      console.error("Failed to finish session:", error);
+      alert(error instanceof Error ? error.message : "Failed to finish session");
+    } finally {
+      setFinishingSession(false);
+      setIsEvaluating(false);
+    }
   };
 
   const handleReplay = (messageId: string) => {
@@ -115,12 +273,13 @@ export default function RoleplayPage() {
     }
   };
 
-
   const handlePracticeAgain = () => {
-    setMessages(messagesMock);
+    setMessages([]);
     setSessionEnded(false);
     setGoalReached(false);
+    setEvaluation(null);
     setSelectedSessionId(null);
+    fetchMessages();
   };
 
   const handleNextScenario = () => {
@@ -137,16 +296,49 @@ export default function RoleplayPage() {
     }
   };
 
-  if (loading) {
+  if (loading || loadingSession) {
     return (
-      <div className="h-screen bg-cream flex items-center justify-center">
+      <div className="h-screen bg-cream flex flex-col items-center justify-center gap-4">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <p className="font-[family-name:var(--font-dm-sans)] text-sm text-gray-600">
+          {loadingMessage}
+        </p>
       </div>
     );
   }
 
   if (!isAuthenticated) {
     return null;
+  }
+
+  if (sessionError) {
+    return (
+      <div className="h-screen bg-cream flex items-center justify-center">
+        <div className="text-center">
+          <div className="font-[family-name:var(--font-dm-sans)] text-red-600 mb-4">
+            {sessionError}
+          </div>
+          <button
+            type="button"
+            className="font-[family-name:var(--font-dm-sans)] text-sm px-4 py-2 rounded-full border border-primary text-white bg-primary"
+            onClick={() => {
+              setSessionError(null);
+              fetchSession();
+            }}
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="h-screen bg-cream flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
   }
 
   return (
@@ -250,10 +442,11 @@ export default function RoleplayPage() {
             <SessionContextCard
               session={session}
               onFinishSession={handleFinishSession}
+              disabled={finishingSession || sessionEnded}
             />
 
             <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-              {sessionEnded ? (
+              {sessionEnded && evaluation ? (
                 <EvaluationPanel
                   evaluation={evaluation}
                   onPracticeAgain={handlePracticeAgain}
@@ -267,10 +460,12 @@ export default function RoleplayPage() {
                     onReplay={handleReplay}
                     speaking={speaking}
                     speakingMessageId={speakingMessageId}
+                    isLoading={sendingMessage}
+                    isEvaluating={isEvaluating}
                   />
                   <InputBar
                     onSend={handleSendMessage}
-                    disabled={sessionEnded}
+                    disabled={sessionEnded || sendingMessage}
                   />
                 </>
               )}

@@ -6,9 +6,10 @@ import Button from "@/components/ui/Button";
 interface SessionContextCardProps {
   session: RoleplaySession;
   onFinishSession: () => void;
+  disabled?: boolean;
 }
 
-export function SessionContextCard({ session, onFinishSession }: SessionContextCardProps) {
+export function SessionContextCard({ session, onFinishSession, disabled = false }: SessionContextCardProps) {
   return (
     <div className="w-96 bg-white border-r border-cream-dark flex flex-col overflow-hidden">
       <div className="p-6 flex flex-col flex-1 min-h-0">

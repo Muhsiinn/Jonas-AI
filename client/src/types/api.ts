@@ -57,3 +57,66 @@ export interface ActivityCompletion {
 }
 
 export type { LessonStreamEvent, AgentOutput };
+
+export interface RoleplaySessionResponse {
+  title: string;
+  userRole: string;
+  aiRole: string;
+  learningGoal: string;
+  suggestedVocab: Array<{
+    term: string;
+    meaning: string;
+  }>;
+}
+
+export interface RoleplayMessageResponse {
+  id: string;
+  speaker: string;
+  text: string;
+  timestamp: string;
+  hasCorrection?: boolean;
+}
+
+export interface RoleplayChatRequest {
+  user_input: string;
+}
+
+export interface RoleplayChatResponse {
+  reply: string;
+  done?: boolean;
+  evaluation?: RoleplayEvaluation;
+}
+
+export interface RoleplayHistoryResponse {
+  id: number;
+  title: string;
+  completed: boolean;
+  score: number | null;
+  created_at: string | null;
+}
+
+export interface RoleplayFinishResponse {
+  evaluation: RoleplayEvaluation;
+  score: number;
+}
+
+export interface RoleplayEvaluation {
+  grammarScore: number;
+  clarityScore: number;
+  naturalnessScore: number;
+  keyMistake: {
+    original: string;
+    corrected: string;
+    explanation: string;
+  };
+  improvedSentence: {
+    original: string;
+    improved: string;
+    explanation: string;
+  };
+  vocabularyUpgrade: {
+    original: string;
+    upgraded: string;
+    explanation: string;
+  };
+}

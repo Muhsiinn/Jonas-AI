@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { BookOpen, MessageSquare, PenTool } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { ActivityCompletion } from "@/types/api";
+import { ROUTES } from "@/lib/config/routes";
 
 type ActivityIcon = typeof BookOpen;
 
@@ -57,7 +58,7 @@ function DashboardActionCard({ icon, titleLine1, titleLine2, completed, onClick 
         </span>
       </div>
 
-      <div className="mt-auto font-[family-name:var(--font-dm-sans)] text-xs px-3 py-2 rounded-full border border-cream-dark/80 text-foreground/90 bg-cream/70 flex items-center justify-center gap-1">
+      <div className="mt-auto font-[family-name:var(--font-dm-sans)] text-xs px-3 py-2 rounded-full border border-cream-dark/80 text-foreground/90 bg-cream/70 flex items-center justify-center gap-1 cursor-pointer">
         <span>{completed ? "Revise session" : "Start session"}</span>
       </div>
     </button>
@@ -106,13 +107,14 @@ export function DashboardActions() {
           titleLine1="Read"
           titleLine2="Lesson"
           completed={activities?.lesson_completed ?? false}
-          onClick={() => router.push("/read")}
+          onClick={() => router.push(ROUTES.READ)}
         />
         <DashboardActionCard
           icon={MessageSquare}
           titleLine1="AI"
           titleLine2="Roleplay"
           completed={activities?.roleplay_completed ?? false}
+          onClick={() => router.push(ROUTES.ROLEPLAY)}
         />
         <DashboardActionCard
           icon={PenTool}

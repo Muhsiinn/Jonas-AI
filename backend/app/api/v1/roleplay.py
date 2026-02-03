@@ -1,33 +1,114 @@
-#we need to make a sep workflow. pass in the input from database. 
 from app.core.database import get_db 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.v1.auth import get_current_user
 from app.models.lesson_model import Lesson
 from app.models.user_model import User
 from sqlalchemy.orm import Session
-from datetime import datetime, date,timedelta,timezone
+from datetime import datetime, date, timedelta, timezone
 from app.core.utils import open_yaml
 from app.core.llm import LLMClient
-from app.schemas.roleplay_schema import Goal, ChatMessage
+from app.schemas.roleplay_schema import (
+    Goal, 
+    ChatMessage, 
+    ChatRequest, 
+    ChatResponse, 
+    SessionResponse, 
+    MessageResponse, 
+    RoleplayHistoryResponse,
+    FinishSessionResponse,
+    RoleplayState
+)
+from app.schemas.agents_schema import Vocabs
+from app.api.v1.stats import update_user_stats, refresh_leaderboard_cache
 from app.models.goal_model import Roleplay
 from app.models.roleplay_message_model import RoleplayMessage
-from collections import defaultdict
 from typing import List
 from app.workflows.roleplay_workflow import build_workflow
 from app.workflows.nodes.roleplay import build_system_prompt
+from app.workflows.nodes.roleplay_evaluation_node import evaluate_roleplay
 
 router = APIRouter()
-@router.get("/goal")
-async def goal_maker(current_user: User = Depends(get_current_user), db:Session = Depends(get_db)):
+
+@router.get("/session", response_model=SessionResponse)
+async def get_session(
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
     today = date.today()
     start = datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc)
-    end = start + timedelta(days=1) 
+    end = start + timedelta(days=1)
 
     lesson = db.query(Lesson).filter(
-        Lesson.user_id==current_user.id,
-        Lesson.created_at>=start,
-        Lesson.created_at<end
+        Lesson.user_id == current_user.id,
+        Lesson.created_at >= start,
+        Lesson.created_at < end
     ).first()
+    
+    if lesson is None:
+        raise HTTPException(
+            status_code=404, 
+            detail="No lesson found for today. Please create a lesson first."
+        )
+
+    goal = db.query(Roleplay).filter(
+        Roleplay.user_id == current_user.id,
+        Roleplay.created_at >= start,
+        Roleplay.created_at < end
+    ).first()
+    
+    if goal is None:
+        raise HTTPException(
+            status_code=404, 
+            detail="No roleplay goal found for today. Please create a goal first."
+        )
+
+    suggested_vocab = []
+    if goal.suggested_vocab:
+        suggested_vocab = goal.suggested_vocab
+    elif lesson.vocab:
+        for vocab_item in lesson.vocab[:5]:
+            if isinstance(vocab_item, dict):
+                suggested_vocab.append({
+                    "term": vocab_item.get("term", ""),
+                    "meaning": vocab_item.get("meaning", "")
+                })
+
+    return SessionResponse(
+        title=lesson.title,
+        userRole=goal.user_role,
+        aiRole=goal.ai_role,
+        learningGoal=goal.goal,
+        suggestedVocab=suggested_vocab
+    )
+
+@router.get("/goal", response_model=Goal)
+async def goal_maker(
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    today = date.today()
+    start = datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc)
+    end = start + timedelta(days=1)
+
+    existing_goal = db.query(Roleplay).filter(
+        Roleplay.user_id == current_user.id,
+        Roleplay.created_at >= start,
+        Roleplay.created_at < end
+    ).first()
+    
+    if existing_goal:
+        return Goal(
+            goal=existing_goal.goal,
+            user_role=existing_goal.user_role,
+            ai_role=existing_goal.ai_role
+        )
+
+    lesson = db.query(Lesson).filter(
+        Lesson.user_id == current_user.id,
+        Lesson.created_at >= start,
+        Lesson.created_at < end
+    ).first()
+    
     if lesson is None:
         raise HTTPException(status_code=404, detail="No lesson found for today.")
 
@@ -47,48 +128,80 @@ async def goal_maker(current_user: User = Depends(get_current_user), db:Session 
     human_prompt = human_prompt.replace("{{ lesson_body }}", text)
 
     messages = [
-    {
-        "role": "system",
-        "content": system_prompt,
-    },
-    {
-        "role": "user",
-        "content": human_prompt,
-    }
-]
+        {
+            "role": "system",
+            "content": system_prompt,
+        },
+        {
+            "role": "user",
+            "content": human_prompt,
+        }
+    ]
+    
     llm = LLMClient()
     chat = llm.get_client("tngtech/tng-r1t-chimera:free")
 
     result = await chat.with_structured_output(Goal).ainvoke(messages)
+    
+    vocab_prompt = yaml_prompt.get('vocab_prompt', '')
+    vocab_system_prompt = vocab_prompt.replace("{{ lesson_text }}", text)
+    
+    vocab_messages = [
+        {
+            "role": "system",
+            "content": vocab_system_prompt
+        }
+    ]
+    
+    vocab_result = await chat.with_structured_output(Vocabs).ainvoke(vocab_messages)
+    
+    suggested_vocab = []
+    for vocab_item in vocab_result.vocab[:5]:
+        suggested_vocab.append({
+            "term": vocab_item.term,
+            "meaning": vocab_item.meaning
+        })
+    
     res = Roleplay(
-        user_id = current_user.id,
-        goal = result.goal,
-        user_role = result.user_role,
-        ai_role = result.ai_role
+        user_id=current_user.id,
+        goal=result.goal,
+        user_role=result.user_role,
+        ai_role=result.ai_role,
+        suggested_vocab=suggested_vocab
     )
     db.add(res)
-    db.commit() 
-    return result 
+    db.commit()
+    db.refresh(res)
+    
+    return result
 
-@router.post("/chat")
-async def chat(user_input:str,current_user: User = Depends(get_current_user), db:Session = Depends(get_db)):
+@router.post("/chat", response_model=ChatResponse)
+async def chat(
+    request: ChatRequest,
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
     today = date.today()
     start = datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc)
-    end = start + timedelta(days=1) 
+    end = start + timedelta(days=1)
 
     lesson = db.query(Lesson).filter(
-        Lesson.user_id==current_user.id,
-        Lesson.created_at>=start,
-        Lesson.created_at<end
+        Lesson.user_id == current_user.id,
+        Lesson.created_at >= start,
+        Lesson.created_at < end
     ).first()
+    
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="No lesson found for today.")
+
     goal = db.query(Roleplay).filter(
-        Roleplay.user_id==current_user.id,
-        Roleplay.created_at>=start,
-        Roleplay.created_at<end
+        Roleplay.user_id == current_user.id,
+        Roleplay.created_at >= start,
+        Roleplay.created_at < end
     ).first()
+    
     if goal is None:
         raise HTTPException(status_code=404, detail="No roleplay goal found for today.")
-    #lesson.title, goal.goal , lesson.paragraphs
 
     existing_messages = (
         db.query(RoleplayMessage)
@@ -118,34 +231,229 @@ async def chat(user_input:str,current_user: User = Depends(get_current_user), db
         ))
         db.commit()
 
+    user_message = ChatMessage(role="user", content=request.user_input)
     previous_len = len(chat_history)
+    
+    # Save user message first
+    db.add(RoleplayMessage(
+        roleplay_id=goal.id,
+        user_id=current_user.id,
+        role=user_message.role,
+        content=user_message.content
+    ))
+    db.commit()
+    
+    chat_history.append(user_message)
 
     initial_state = {
-            "lesson_title": lesson.title,
-            "lesson_body": " ".join(lesson.paragraphs),
-            "goal_text": goal.goal,
-            "user_role": goal.user_role,
-            "ai_role": goal.ai_role,
-            "chat_history": chat_history,
-            "user_input": user_input,
-            "turn_count": 0,
-            "max_turns": 1
-        }
+        "lesson_title": lesson.title,
+        "lesson_body": " ".join(lesson.paragraphs),
+        "goal_text": goal.goal,
+        "user_role": goal.user_role,
+        "ai_role": goal.ai_role,
+        "chat_history": chat_history,
+        "user_input": request.user_input,
+        "turn_count": 0
+    }
     
     app = build_workflow()
     result = await app.ainvoke(initial_state)
     new_history = result.get("chat_history", chat_history)
     new_messages = new_history[previous_len:]
+    
+    # Save only new messages (AI response and any system messages)
     for msg in new_messages:
-        db.add(RoleplayMessage(
-            roleplay_id=goal.id,
-            user_id=current_user.id,
-            role=msg.role,
-            content=msg.content
-        ))
+        if msg.role != "user":  # User message already saved
+            db.add(RoleplayMessage(
+                roleplay_id=goal.id,
+                user_id=current_user.id,
+                role=msg.role,
+                content=msg.content
+            ))
+    
     if new_messages:
         db.commit()
 
-    return {"reply": result["reply"]}
+    reply = result.get("reply", "").strip() if result.get("reply") else ""
+    evaluation = result.get("evaluation")
+    done = result.get("done", False)
+    
+    # If workflow evaluated (conversation ended), save evaluation and update stats
+    if evaluation and done:
+        avg_score = (
+            evaluation.get("grammarScore", 0) + 
+            evaluation.get("clarityScore", 0) + 
+            evaluation.get("naturalnessScore", 0)
+        ) // 3
+        
+        goal.evaluation = evaluation
+        goal.completed = True
+        goal.score = avg_score
+        db.commit()
+        
+        points_earned = avg_score + 10
+        update_user_stats(db, current_user.id, points_earned, "roleplay", goal.id)
+        refresh_leaderboard_cache(db)
 
+    return ChatResponse(reply=reply, done=done, evaluation=evaluation)
 
+@router.get("/messages", response_model=List[MessageResponse])
+async def get_messages(
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    today = date.today()
+    start = datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc)
+    end = start + timedelta(days=1)
+
+    goal = db.query(Roleplay).filter(
+        Roleplay.user_id == current_user.id,
+        Roleplay.created_at >= start,
+        Roleplay.created_at < end
+    ).first()
+    
+    if goal is None:
+        return []
+
+    messages = (
+        db.query(RoleplayMessage)
+        .filter(
+            RoleplayMessage.roleplay_id == goal.id,
+            RoleplayMessage.role.in_(["user", "assistant"])
+        )
+        .order_by(RoleplayMessage.created_at.asc())
+        .all()
+    )
+
+    result = []
+    for msg in messages:
+        speaker = "user" if msg.role == "user" else "ai"
+        result.append(MessageResponse(
+            id=str(msg.id),
+            speaker=speaker,
+            text=msg.content,
+            timestamp=msg.created_at.isoformat() if msg.created_at else datetime.now(timezone.utc).isoformat(),
+            hasCorrection=False
+        ))
+    
+    return result
+
+@router.get("/history", response_model=List[RoleplayHistoryResponse])
+async def get_roleplay_history(
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    goals = (
+        db.query(Roleplay)
+        .filter(Roleplay.user_id == current_user.id)
+        .order_by(Roleplay.created_at.desc())
+        .limit(30)
+        .all()
+    )
+
+    result = []
+    for goal in goals:
+        lesson = db.query(Lesson).filter(
+            Lesson.user_id == current_user.id,
+            Lesson.created_at >= goal.created_at.replace(hour=0, minute=0, second=0, microsecond=0),
+            Lesson.created_at < (goal.created_at.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1))
+        ).first()
+        
+        title = lesson.title if lesson else "Unknown"
+        
+        has_evaluation = goal.evaluation is not None and goal.evaluation != {}
+        result.append(RoleplayHistoryResponse(
+            id=goal.id,
+            title=title,
+            completed=has_evaluation,
+            score=goal.score if hasattr(goal, 'score') else None,
+            created_at=goal.created_at.isoformat() if goal.created_at else None
+        ))
+    
+    return result
+
+@router.post("/finish", response_model=FinishSessionResponse)
+async def finish_session(
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    today = date.today()
+    start = datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc)
+    end = start + timedelta(days=1)
+
+    lesson = db.query(Lesson).filter(
+        Lesson.user_id == current_user.id,
+        Lesson.created_at >= start,
+        Lesson.created_at < end
+    ).first()
+    
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="No lesson found for today.")
+
+    goal = db.query(Roleplay).filter(
+        Roleplay.user_id == current_user.id,
+        Roleplay.created_at >= start,
+        Roleplay.created_at < end
+    ).first()
+    
+    if goal is None:
+        raise HTTPException(status_code=404, detail="No roleplay goal found for today.")
+
+    if goal.evaluation and goal.evaluation != {}:
+        from app.schemas.roleplay_schema import RoleplayEvaluationOutput
+        evaluation = RoleplayEvaluationOutput(**goal.evaluation)
+        return FinishSessionResponse(
+            evaluation=evaluation,
+            score=goal.score or 0
+        )
+
+    existing_messages = (
+        db.query(RoleplayMessage)
+        .filter(RoleplayMessage.roleplay_id == goal.id)
+        .order_by(RoleplayMessage.created_at.asc())
+        .all()
+    )
+    chat_history = [ChatMessage(role=m.role, content=m.content) for m in existing_messages]
+
+    if not chat_history:
+        raise HTTPException(status_code=400, detail="No conversation found. Cannot evaluate empty session.")
+
+    initial_state = RoleplayState(
+        lesson_title=lesson.title,
+        lesson_body=" ".join(lesson.paragraphs),
+        goal_text=goal.goal,
+        user_role=goal.user_role,
+        ai_role=goal.ai_role,
+        chat_history=chat_history,
+        user_input="",
+        turn_count=0
+    )
+    
+    evaluation_result = await evaluate_roleplay(initial_state)
+    evaluation = evaluation_result.get("evaluation")
+    
+    if not evaluation:
+        raise HTTPException(status_code=500, detail="Failed to generate evaluation.")
+
+    from app.schemas.roleplay_schema import RoleplayEvaluationOutput
+    evaluation_output = RoleplayEvaluationOutput(**evaluation)
+    
+    avg_score = (
+        evaluation.get("grammarScore", 0) + 
+        evaluation.get("clarityScore", 0) + 
+        evaluation.get("naturalnessScore", 0)
+    ) // 3
+    
+    goal.evaluation = evaluation
+    goal.completed = True
+    goal.score = avg_score
+    db.commit()
+    
+    points_earned = avg_score + 10
+    update_user_stats(db, current_user.id, points_earned, "roleplay", goal.id)
+    refresh_leaderboard_cache(db)
+
+    return FinishSessionResponse(
+        evaluation=evaluation_output,
+        score=avg_score
+    )

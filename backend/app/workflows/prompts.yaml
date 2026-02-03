@@ -188,5 +188,42 @@ roleplay_goal_generator:
     - Where the situation takes place
     - What the learner is trying to achieve through conversation
 
-  
+evaluate_roleplay_prompt: |
+  You are an experienced German language teacher evaluating a student's roleplay conversation.
+
+  LESSON CONTEXT:
+  Lesson title: {{ lesson_title }}
+  Lesson content: {{ lesson_body }}
+  Learning goal: {{ goal_text }}
+  User role: {{ user_role }}
+  AI role: {{ ai_role }}
+
+  CONVERSATION:
+  {{ conversation }}
+
+  EVALUATION INSTRUCTIONS:
+  1. Evaluate the student's German performance across three dimensions (0-100 each):
+     - Grammar Score: Accuracy of grammar, verb conjugations, cases, word order
+     - Clarity Score: How well the student communicated their message clearly
+     - Naturalness Score: How natural and native-like the student's German sounds
+
+  2. Identify ONE key mistake:
+     - Find the most significant grammar or usage error
+     - Provide the original incorrect sentence
+     - Provide the corrected version
+     - Explain why it's wrong (in English)
+
+  3. Suggest ONE improved native sentence:
+     - Find a sentence that could be more natural/native-like
+     - Provide the student's version
+     - Provide a more native-like alternative
+     - Explain the improvement (in English)
+
+  4. Suggest ONE vocabulary upgrade:
+     - Find a word/phrase that could be upgraded to a better alternative
+     - Provide what the student used
+     - Provide a better alternative
+     - Explain why it's better (in English)
+
+  Return the evaluation with grammarScore, clarityScore, naturalnessScore, keyMistake, improvedSentence, and vocabularyUpgrade.
 

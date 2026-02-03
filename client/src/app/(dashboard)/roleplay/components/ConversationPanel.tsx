@@ -11,6 +11,8 @@ interface ConversationPanelProps {
   onReplay?: (messageId: string) => void;
   speaking?: boolean;
   speakingMessageId?: string | null;
+  isLoading?: boolean;
+  isEvaluating?: boolean;
 }
 
 export function ConversationPanel({
@@ -19,12 +21,14 @@ export function ConversationPanel({
   onReplay,
   speaking = false,
   speakingMessageId = null,
+  isLoading = false,
+  isEvaluating = false,
 }: ConversationPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isLoading]);
 
   return (
     <div className="flex-1 overflow-y-auto bg-cream p-6">
@@ -37,6 +41,36 @@ export function ConversationPanel({
             speaking={speaking && speakingMessageId === message.id}
           />
         ))}
+        
+        {isLoading && (
+          <div className="flex items-start gap-3 mb-4">
+            <div className="flex-1">
+              <div className="bg-cream-dark rounded-2xl rounded-tl-sm px-4 py-3 inline-block max-w-[80%]">
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                  <span className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-500">AI is typing...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isEvaluating && (
+          <div className="flex items-start gap-3 mb-4">
+            <div className="flex-1">
+              <div className="bg-primary/10 rounded-2xl rounded-tl-sm px-4 py-3 inline-block max-w-[80%] border-2 border-primary/20">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  <span className="font-[family-name:var(--font-dm-sans)] text-xs text-primary font-medium">Evaluating...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         
         {sessionEnded && (
           <div className="bg-white rounded-2xl border-2 border-primary/30 p-6 mt-6">
