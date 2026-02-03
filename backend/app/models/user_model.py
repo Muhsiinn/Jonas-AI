@@ -20,3 +20,5 @@ class User(Base):
     lesson = relationship("Lesson",back_populates="user")
     stats = relationship("UserStats",back_populates="user",uselist=False)
     activity_logs = relationship("ActivityLog",back_populates="user")
+    roleplay = relationship('Roleplay',back_populates="user")
+    roleplay_messages = relationship("RoleplayMessage", back_populates="user")

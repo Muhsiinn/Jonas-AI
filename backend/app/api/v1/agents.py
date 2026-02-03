@@ -142,7 +142,7 @@ async def evaluate_lesson(
     db_lesson.answers = answers_dict
     db.commit()
 
-    yaml_prompts = open_yaml("app/core/prompts.yaml")
+    yaml_prompts = open_yaml("app/workflows/prompts.yaml")
     prompt = yaml_prompts['evaluate_lesson_prompt']
 
     prompt = prompt.replace("{{ article }}", json.dumps(db_lesson.paragraphs, ensure_ascii=False))

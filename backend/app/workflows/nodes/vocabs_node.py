@@ -7,7 +7,7 @@ async def make_vocabs(state:State):
     llm = LLMClient()
     chat = llm.get_client("nvidia/nemotron-3-nano-30b-a3b:free")
     lesson = " ".join(state['lesson'].paragraphs)
-    yaml_prompts = open_yaml("app/core/prompts.yaml")
+    yaml_prompts = open_yaml("app/workflows/prompts.yaml")
     p = yaml_prompts['vocab_prompt']
     system_prompt = (
     p.replace("{{ lesson_text }}", lesson))

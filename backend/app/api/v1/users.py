@@ -74,7 +74,7 @@ async def get_daily_situation(current_user: User = Depends(get_current_user), db
     llm = LLMClient()
     llm = llm.get_client("arcee-ai/trinity-mini:free")
 
-    yaml_prompts = open_yaml("app/core/prompts.yaml")
+    yaml_prompts = open_yaml("app/workflows/prompts.yaml")
     p = yaml_prompts['situation_generate']
     prompt = ChatPromptTemplate.from_messages([
     ("system", p["system"]),

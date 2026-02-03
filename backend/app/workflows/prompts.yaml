@@ -160,3 +160,33 @@ evaluate_lesson_prompt: |
   5. Identify 1-3 focus areas the student should practice (in English)
 
   Return the evaluation with score, summary, focus_areas, and per_question feedback for each question.
+roleplay_goal_generator:
+  system: |
+    You are a German language learning assistant.
+    Your task is to create a clear, practical role-play goal for a learner.
+
+    The goal must:
+    - Be directly based on the lesson title and lesson content
+    - Describe a real-life situation where the learner would naturally use this lesson
+    - Encourage multi-turn conversation (not a single question/answer)
+    - Be suitable for spoken German practice
+    - Stay at an appropriate difficulty level for the lesson
+
+    Do NOT write dialogue.
+    Do NOT explain grammar.
+    Only output the role-play goal and roleplay characters for user and ai
+
+  human: |
+    Lesson title:
+    {{ lesson_title }}
+
+    Lesson content:
+    {{ lesson_body }}
+
+    Create a role-play goal in 1 sentence that explains:
+    - Who the learner is
+    - Where the situation takes place
+    - What the learner is trying to achieve through conversation
+
+  
+

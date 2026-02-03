@@ -8,7 +8,7 @@ async def make_question(state:State):
     current_user = state["current_user"]
     llm = LLMClient()
     chat = llm.get_client("arcee-ai/trinity-large-preview:free")
-    yaml_prompts = open_yaml("app/core/prompts.yaml")
+    yaml_prompts = open_yaml("app/workflows/prompts.yaml")
     user_speaking_level = current_user.profile.user_level_speaking
     user_reading_level = current_user.profile.user_level_reading
     user_goal = current_user.profile.user_goal

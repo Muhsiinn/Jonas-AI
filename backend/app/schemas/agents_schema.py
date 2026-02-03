@@ -90,3 +90,4 @@ class LessonProgress(BaseModel):
 
 class UpdateProgressRequest(BaseModel):
     progress: LessonProgress
+

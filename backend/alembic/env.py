@@ -4,8 +4,8 @@ from sqlalchemy import pool
 from alembic import context
 from app.core.config import settings
 from app.core.database import Base
-from app.models.user import User
-from app.models.user_profile import UserProfile
+from app.models.user_model import User
+from app.models.user_profile_model import UserProfile
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

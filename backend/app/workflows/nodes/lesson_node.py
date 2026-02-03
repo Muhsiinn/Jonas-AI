@@ -14,7 +14,7 @@ async def make_lesson(state:State):
     
     llm = LLMClient()
     chat = llm.get_client("nvidia/nemotron-3-nano-30b-a3b:free")
-    yaml_prompts = open_yaml("app/core/prompts.yaml")
+    yaml_prompts = open_yaml("app/workflows/prompts.yaml")
     user_speaking_level = current_user.profile.user_level_speaking
     user_reading_level = current_user.profile.user_level_reading
     user_goal = current_user.profile.user_goal

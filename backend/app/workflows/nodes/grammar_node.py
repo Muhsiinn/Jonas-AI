@@ -9,7 +9,7 @@ async def make_grammar(state: State):
     chat = llm.get_client("nvidia/nemotron-3-nano-30b-a3b:free")
     lesson = " ".join(state['lesson'].paragraphs)
     
-    yaml_prompts = open_yaml("app/core/prompts.yaml")
+    yaml_prompts = open_yaml("app/workflows/prompts.yaml")
     p = yaml_prompts['grammar_prompt']
     
     user_speaking_level = current_user.profile.user_level_speaking
