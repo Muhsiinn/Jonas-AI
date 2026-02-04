@@ -75,6 +75,7 @@ export function SessionContextCard({ session, onFinishSession, disabled = false 
             size="sm"
             onClick={onFinishSession}
             className="w-full"
+            disabled={disabled}
           >
             Finish Session
           </Button>

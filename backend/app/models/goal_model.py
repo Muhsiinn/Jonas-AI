@@ -16,6 +16,7 @@ class Roleplay(Base):
     score = Column(Integer, nullable=True)
     evaluation = Column(JSONB, nullable=True)
     suggested_vocab = Column(JSONB, nullable=True)
+    should_end = Column(Boolean, nullable=True, default=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

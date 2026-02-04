@@ -1,10 +1,12 @@
-from app.core.database import get_db 
-from fastapi import APIRouter, Depends, HTTPException, status
+from app.core.database import get_db
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from app.api.v1.auth import get_current_user
 from app.models.lesson_model import Lesson
 from app.models.user_model import User
 from sqlalchemy.orm import Session
 from datetime import datetime, date, timedelta, timezone
+import json
+import re
 from app.core.utils import open_yaml
 from app.core.llm import LLMClient
 from app.schemas.roleplay_schema import (
@@ -15,8 +17,7 @@ from app.schemas.roleplay_schema import (
     SessionResponse, 
     MessageResponse, 
     RoleplayHistoryResponse,
-    FinishSessionResponse,
-    RoleplayState
+    FinishSessionResponse
 )
 from app.schemas.agents_schema import Vocabs
 from app.api.v1.stats import update_user_stats, refresh_leaderboard_cache
@@ -26,6 +27,11 @@ from typing import List
 from app.workflows.roleplay_workflow import build_workflow
 from app.workflows.nodes.roleplay import build_system_prompt
 from app.workflows.nodes.roleplay_evaluation_node import evaluate_roleplay
+from app.services.roleplay_service import (
+    check_end_in_background_task,
+    get_or_create_today_lesson,
+    normalize_roleplay_evaluation,
+)
 
 router = APIRouter()
 
@@ -38,17 +44,7 @@ async def get_session(
     start = datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc)
     end = start + timedelta(days=1)
 
-    lesson = db.query(Lesson).filter(
-        Lesson.user_id == current_user.id,
-        Lesson.created_at >= start,
-        Lesson.created_at < end
-    ).first()
-    
-    if lesson is None:
-        raise HTTPException(
-            status_code=404, 
-            detail="No lesson found for today. Please create a lesson first."
-        )
+    lesson = await get_or_create_today_lesson(current_user=current_user, db=db, start=start, end=end)
 
     goal = db.query(Roleplay).filter(
         Roleplay.user_id == current_user.id,
@@ -103,14 +99,7 @@ async def goal_maker(
             ai_role=existing_goal.ai_role
         )
 
-    lesson = db.query(Lesson).filter(
-        Lesson.user_id == current_user.id,
-        Lesson.created_at >= start,
-        Lesson.created_at < end
-    ).first()
-    
-    if lesson is None:
-        raise HTTPException(status_code=404, detail="No lesson found for today.")
+    lesson = await get_or_create_today_lesson(current_user=current_user, db=db, start=start, end=end)
 
     title = lesson.title
     text = " ".join(lesson.paragraphs)
@@ -138,10 +127,9 @@ async def goal_maker(
         }
     ]
     
-    llm = LLMClient()
-    chat = llm.get_client("tngtech/tng-r1t-chimera:free")
-
-    result = await chat.with_structured_output(Goal).ainvoke(messages)
+    goal_llm = LLMClient()
+    goal_chat = goal_llm.get_client("tngtech/tng-r1t-chimera:free")
+    result = await goal_chat.with_structured_output(Goal).ainvoke(messages)
     
     vocab_prompt = yaml_prompt.get('vocab_prompt', '')
     vocab_system_prompt = vocab_prompt.replace("{{ lesson_text }}", text)
@@ -152,15 +140,35 @@ async def goal_maker(
             "content": vocab_system_prompt
         }
     ]
-    
-    vocab_result = await chat.with_structured_output(Vocabs).ainvoke(vocab_messages)
+
+    vocab_items = []
+    try:
+        # Use a separate client instance for structured JSON (LLMClient caches internally)
+        vocab_llm = LLMClient()
+        vocab_chat = vocab_llm.get_client("nvidia/nemotron-3-nano-30b-a3b:free")
+        vocab_result = await vocab_chat.with_structured_output(Vocabs).ainvoke(vocab_messages)
+        vocab_items = vocab_result.vocab
+    except Exception:
+        # Fallback: parse JSON manually (free models can return extra text or truncated JSON)
+        try:
+            vocab_llm = LLMClient()
+            vocab_chat = vocab_llm.get_client("nvidia/nemotron-3-nano-30b-a3b:free")
+            raw = await vocab_chat.ainvoke(vocab_messages)
+            raw_text = raw.content if hasattr(raw, "content") else str(raw)
+            match = re.search(r"\{[\s\S]*\}", raw_text)
+            if match:
+                data = json.loads(match.group(0))
+                vocab_items = Vocabs(**data).vocab
+        except Exception:
+            vocab_items = []
     
     suggested_vocab = []
-    for vocab_item in vocab_result.vocab[:5]:
-        suggested_vocab.append({
-            "term": vocab_item.term,
-            "meaning": vocab_item.meaning
-        })
+    for vocab_item in vocab_items[:5]:
+        if getattr(vocab_item, "term", None) and getattr(vocab_item, "meaning", None):
+            suggested_vocab.append({
+                "term": vocab_item.term,
+                "meaning": vocab_item.meaning
+            })
     
     res = Roleplay(
         user_id=current_user.id,
@@ -178,6 +186,7 @@ async def goal_maker(
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
@@ -185,14 +194,7 @@ async def chat(
     start = datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc)
     end = start + timedelta(days=1)
 
-    lesson = db.query(Lesson).filter(
-        Lesson.user_id == current_user.id,
-        Lesson.created_at >= start,
-        Lesson.created_at < end
-    ).first()
-    
-    if lesson is None:
-        raise HTTPException(status_code=404, detail="No lesson found for today.")
+    lesson = await get_or_create_today_lesson(current_user=current_user, db=db, start=start, end=end)
 
     goal = db.query(Roleplay).filter(
         Roleplay.user_id == current_user.id,
@@ -212,11 +214,14 @@ async def chat(
     chat_history = [ChatMessage(role=m.role, content=m.content) for m in existing_messages]
 
     if not chat_history:
+        lesson_title = lesson.title
+        lesson_body = " ".join(lesson.paragraphs)
+
         system_message = ChatMessage(
             role="system",
             content=build_system_prompt(
-                lesson.title,
-                " ".join(lesson.paragraphs),
+                lesson_title,
+                lesson_body,
                 goal.goal,
                 goal.user_role,
                 goal.ai_role
@@ -245,15 +250,19 @@ async def chat(
     
     chat_history.append(user_message)
 
+    lesson_title = lesson.title
+    lesson_body = " ".join(lesson.paragraphs)
+
     initial_state = {
-        "lesson_title": lesson.title,
-        "lesson_body": " ".join(lesson.paragraphs),
+        "lesson_title": lesson_title,
+        "lesson_body": lesson_body,
         "goal_text": goal.goal,
         "user_role": goal.user_role,
         "ai_role": goal.ai_role,
         "chat_history": chat_history,
         "user_input": request.user_input,
-        "turn_count": 0
+        "turn_count": 0,
+        "goal_id": goal.id
     }
     
     app = build_workflow()
@@ -274,7 +283,11 @@ async def chat(
     if new_messages:
         db.commit()
 
-    reply = result.get("reply", "").strip() if result.get("reply") else ""
+    reply = result.get("reply", "").strip()
+    for msg in new_messages:
+        if msg.role == "assistant" and not reply:
+            reply = msg.content.strip()
+    
     evaluation = result.get("evaluation")
     done = result.get("done", False)
     
@@ -294,8 +307,24 @@ async def chat(
         points_earned = avg_score + 10
         update_user_stats(db, current_user.id, points_earned, "roleplay", goal.id)
         refresh_leaderboard_cache(db)
-
-    return ChatResponse(reply=reply, done=done, evaluation=evaluation)
+        
+        # Return reply + evaluation in same response
+        return ChatResponse(reply=reply, done=True, evaluation=evaluation)
+    
+    # Trigger background end_check for THIS reply (for next message)
+    if reply:
+        background_tasks.add_task(
+            check_end_in_background_task,
+            goal.id,
+            reply,
+            lesson_title,
+            lesson_body,
+            goal.goal,
+            goal.user_role,
+            goal.ai_role
+        )
+    
+    return ChatResponse(reply=reply, done=False, evaluation=None)
 
 @router.get("/messages", response_model=List[MessageResponse])
 async def get_messages(
@@ -381,14 +410,7 @@ async def finish_session(
     start = datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc)
     end = start + timedelta(days=1)
 
-    lesson = db.query(Lesson).filter(
-        Lesson.user_id == current_user.id,
-        Lesson.created_at >= start,
-        Lesson.created_at < end
-    ).first()
-    
-    if lesson is None:
-        raise HTTPException(status_code=404, detail="No lesson found for today.")
+    lesson = await get_or_create_today_lesson(current_user=current_user, db=db, start=start, end=end)
 
     goal = db.query(Roleplay).filter(
         Roleplay.user_id == current_user.id,
@@ -401,7 +423,10 @@ async def finish_session(
 
     if goal.evaluation and goal.evaluation != {}:
         from app.schemas.roleplay_schema import RoleplayEvaluationOutput
-        evaluation = RoleplayEvaluationOutput(**goal.evaluation)
+        try:
+            evaluation = RoleplayEvaluationOutput(**goal.evaluation)
+        except Exception:
+            evaluation = RoleplayEvaluationOutput(**normalize_roleplay_evaluation(goal.evaluation))
         return FinishSessionResponse(
             evaluation=evaluation,
             score=goal.score or 0
@@ -418,16 +443,17 @@ async def finish_session(
     if not chat_history:
         raise HTTPException(status_code=400, detail="No conversation found. Cannot evaluate empty session.")
 
-    initial_state = RoleplayState(
-        lesson_title=lesson.title,
-        lesson_body=" ".join(lesson.paragraphs),
-        goal_text=goal.goal,
-        user_role=goal.user_role,
-        ai_role=goal.ai_role,
-        chat_history=chat_history,
-        user_input="",
-        turn_count=0
-    )
+    initial_state = {
+        "lesson_title": lesson.title,
+        "lesson_body": " ".join(lesson.paragraphs),
+        "goal_text": goal.goal,
+        "user_role": goal.user_role,
+        "ai_role": goal.ai_role,
+        "chat_history": chat_history,
+        "user_input": "",
+        "turn_count": 0,
+        "goal_id": goal.id
+    }
     
     evaluation_result = await evaluate_roleplay(initial_state)
     evaluation = evaluation_result.get("evaluation")
@@ -436,7 +462,7 @@ async def finish_session(
         raise HTTPException(status_code=500, detail="Failed to generate evaluation.")
 
     from app.schemas.roleplay_schema import RoleplayEvaluationOutput
-    evaluation_output = RoleplayEvaluationOutput(**evaluation)
+    evaluation_output = RoleplayEvaluationOutput(**normalize_roleplay_evaluation(evaluation))
     
     avg_score = (
         evaluation.get("grammarScore", 0) + 

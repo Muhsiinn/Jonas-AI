@@ -2,6 +2,7 @@ from app.core.llm import LLMClient
 from app.schemas.roleplay_schema import RoleplayState, RoleplayEvaluationOutput, ChatMessage
 from app.core.utils import open_yaml
 import json
+import re
 
 async def evaluate_roleplay(state: RoleplayState):
     yaml_prompts = open_yaml("app/workflows/prompts.yaml")
@@ -32,9 +33,24 @@ async def evaluate_roleplay(state: RoleplayState):
     llm = LLMClient()
     chat = llm.get_client("tngtech/tng-r1t-chimera:free")
     
-    result = await chat.with_structured_output(RoleplayEvaluationOutput).ainvoke(messages)
+    try:
+        # Primary path: enforce schema via structured output
+        result = await chat.with_structured_output(RoleplayEvaluationOutput).ainvoke(messages)
+    except Exception:
+        # Fallback: ask for raw JSON and parse manually (some free models are flaky with structured output)
+        raw = await chat.ainvoke(messages)
+        text = raw.content if hasattr(raw, "content") else str(raw)
+
+        # Extract first JSON object from the response
+        match = re.search(r"\{[\s\S]*\}", text)
+        if not match:
+            raise
+
+        data = json.loads(match.group(0))
+        result = RoleplayEvaluationOutput(**data)
     
     return {
         "evaluation": result.model_dump(),
-        "done": True
+        "done": True,
+        "reply": state.reply
     }

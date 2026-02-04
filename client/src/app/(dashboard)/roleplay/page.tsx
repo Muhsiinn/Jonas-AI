@@ -59,13 +59,36 @@ export default function RoleplayPage() {
       
       try {
         const sessionData = await apiClient.getRoleplaySession();
-        setSession({
+        const nextSession: RoleplaySession = {
           title: sessionData.title,
           userRole: sessionData.userRole,
           aiRole: sessionData.aiRole,
           learningGoal: sessionData.learningGoal,
           suggestedVocab: sessionData.suggestedVocab,
+        };
+        setSession(nextSession);
+
+        // Ensure "today" session is visible in history immediately (even if history fetch raced earlier)
+        setRoleplayHistory((prev) => {
+          const alreadyHasToday = prev.some((h) => formatDate(h.created_at) === "Today");
+          if (alreadyHasToday) return prev;
+          const optimistic: RoleplayHistoryItem = {
+            id: -Date.now(), // temporary id (never sent to backend)
+            title: nextSession.title,
+            completed: false,
+            score: null,
+            created_at: new Date().toISOString(),
+          };
+          return [optimistic, ...prev];
         });
+
+        // Refresh from backend so sidebar has real ids
+        try {
+          const history = await apiClient.getRoleplayHistory();
+          setRoleplayHistory(history);
+        } catch {
+          // ignore; optimistic entry keeps UI usable
+        }
       } catch (error: any) {
         if (error.status === 404) {
           const errorMessage = error.message || "";
@@ -86,13 +109,36 @@ export default function RoleplayPage() {
               
               setLoadingMessage("Finalizing your roleplay session...");
               const sessionData = await apiClient.getRoleplaySession();
-              setSession({
+              const nextSession: RoleplaySession = {
                 title: sessionData.title,
                 userRole: sessionData.userRole,
                 aiRole: sessionData.aiRole,
                 learningGoal: sessionData.learningGoal,
                 suggestedVocab: sessionData.suggestedVocab,
+              };
+              setSession(nextSession);
+
+              // Optimistically show the just-created session in the sidebar
+              setRoleplayHistory((prev) => {
+                const alreadyHasToday = prev.some((h) => formatDate(h.created_at) === "Today");
+                if (alreadyHasToday) return prev;
+                const optimistic: RoleplayHistoryItem = {
+                  id: -Date.now(), // temporary id (never sent to backend)
+                  title: nextSession.title,
+                  completed: false,
+                  score: null,
+                  created_at: new Date().toISOString(),
+                };
+                return [optimistic, ...prev];
               });
+
+              // Immediately refetch history so we replace temp id with real goal id
+              try {
+                const history = await apiClient.getRoleplayHistory();
+                setRoleplayHistory(history);
+              } catch {
+                // ignore
+              }
             } catch (createError: any) {
               const createErrorMessage = createError.message || "";
               if (createErrorMessage.toLowerCase().includes("lesson")) {
@@ -139,10 +185,16 @@ export default function RoleplayPage() {
     try {
       const history = await apiClient.getRoleplayHistory();
       setRoleplayHistory(history);
+
+      // Default-select the latest session so the sidebar always reflects "today"
+      if (selectedSessionId === null && history.length > 0) {
+        setSelectedSessionId(history[0].id);
+        setSessionEnded(history[0].completed);
+      }
     } catch (error) {
       console.error("Failed to fetch history:", error);
     }
-  }, []);
+  }, [selectedSessionId]);
 
   useEffect(() => {
     if (!loading && isAuthenticated && !fetchingRef.current) {
@@ -442,7 +494,7 @@ export default function RoleplayPage() {
             <SessionContextCard
               session={session}
               onFinishSession={handleFinishSession}
-              disabled={finishingSession || sessionEnded}
+              disabled={finishingSession || sessionEnded || !!evaluation}
             />
 
             <div className="flex-1 flex flex-col overflow-hidden min-w-0">
@@ -462,6 +514,7 @@ export default function RoleplayPage() {
                     speakingMessageId={speakingMessageId}
                     isLoading={sendingMessage}
                     isEvaluating={isEvaluating}
+                    onSpeakText={(text) => speakText(text, `selection-${Date.now()}`)}
                   />
                   <InputBar
                     onSend={handleSendMessage}

@@ -6,6 +6,9 @@ import { BookOpen, MessageSquare, PenTool } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { ActivityCompletion } from "@/types/api";
 import { ROUTES } from "@/lib/config/routes";
+import { LessonHistoryItem } from "@/types/lesson";
+import { RoleplayHistoryItem } from "@/types/roleplay";
+import { formatDate } from "@/lib/utils/format";
 
 type ActivityIcon = typeof BookOpen;
 
@@ -14,11 +17,14 @@ type DashboardActionCardProps = {
   titleLine1: string;
   titleLine2: string;
   completed: boolean;
+  inProgress?: boolean;
   onClick?: () => void;
 };
 
-function DashboardActionCard({ icon, titleLine1, titleLine2, completed, onClick }: DashboardActionCardProps) {
+function DashboardActionCard({ icon, titleLine1, titleLine2, completed, inProgress = false, onClick }: DashboardActionCardProps) {
   const Icon = icon;
+  const statusLabel = completed ? "Done today" : inProgress ? "In progress" : "Not done";
+  const ctaLabel = completed ? "Revise session" : inProgress ? "Resume session" : "Start session";
 
   return (
     <button
@@ -47,11 +53,13 @@ function DashboardActionCard({ icon, titleLine1, titleLine2, completed, onClick 
           className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-[family-name:var(--font-dm-sans)] ${
             completed
               ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+              : inProgress
+              ? "bg-amber-50 text-amber-700 border border-amber-100"
               : "bg-amber-50 text-amber-700 border border-amber-100"
           }`}
         >
           <span className="mr-1 text-xs">{completed ? "●" : "○"}</span>
-          {completed ? "Done today" : "Not done"}
+          {statusLabel}
         </span>
         <span className="font-[family-name:var(--font-dm-sans)] text-[11px] text-gray-500">
           {completed ? "Great, keep the streak going." : "Perfect for today's situation."}
@@ -59,7 +67,7 @@ function DashboardActionCard({ icon, titleLine1, titleLine2, completed, onClick 
       </div>
 
       <div className="mt-auto font-[family-name:var(--font-dm-sans)] text-xs px-3 py-2 rounded-full border border-cream-dark/80 text-foreground/90 bg-cream/70 flex items-center justify-center gap-1 cursor-pointer">
-        <span>{completed ? "Revise session" : "Start session"}</span>
+        <span>{ctaLabel}</span>
       </div>
     </button>
   );
@@ -68,13 +76,25 @@ function DashboardActionCard({ icon, titleLine1, titleLine2, completed, onClick 
 export function DashboardActions() {
   const router = useRouter();
   const [activities, setActivities] = useState<ActivityCompletion | null>(null);
+  const [lessonInProgress, setLessonInProgress] = useState(false);
+  const [roleplayInProgress, setRoleplayInProgress] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchActivities = async () => {
       try {
-        const data = await apiClient.getTodayActivities();
+        const [data, lessonsHistory, roleplayHistory] = await Promise.all([
+          apiClient.getTodayActivities(),
+          apiClient.getLessonsHistory().catch(() => [] as LessonHistoryItem[]),
+          apiClient.getRoleplayHistory().catch(() => [] as RoleplayHistoryItem[]),
+        ]);
         setActivities(data);
+
+        const todayLesson = lessonsHistory.find((l) => formatDate(l.created_at) === "Today");
+        setLessonInProgress(Boolean(todayLesson && !todayLesson.completed));
+
+        const todayRoleplay = roleplayHistory.find((r) => formatDate(r.created_at) === "Today");
+        setRoleplayInProgress(Boolean(todayRoleplay && !todayRoleplay.completed));
       } catch (error) {
         console.error("Error fetching today's activities:", error);
       } finally {
@@ -105,6 +125,7 @@ export function DashboardActions() {
           titleLine1="Read"
           titleLine2="Lesson"
           completed={activities?.lesson_completed ?? false}
+          inProgress={lessonInProgress && !(activities?.lesson_completed ?? false)}
           onClick={() => router.push(ROUTES.READ)}
         />
         <DashboardActionCard
@@ -112,6 +133,7 @@ export function DashboardActions() {
           titleLine1="AI"
           titleLine2="Roleplay"
           completed={activities?.roleplay_completed ?? false}
+          inProgress={roleplayInProgress && !(activities?.roleplay_completed ?? false)}
           onClick={() => router.push(ROUTES.ROLEPLAY)}
         />
         <DashboardActionCard

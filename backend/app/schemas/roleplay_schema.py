@@ -1,6 +1,6 @@
 # schemas/roleplay_schema.py
 from typing import Literal, List, Annotated, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 from langgraph.graph.message import add_messages
 
@@ -35,6 +35,7 @@ class RoleplayState(BaseModel):
     done: bool = False
     turn_count: int = 0
     evaluation: Optional[dict] = None
+    goal_id: Optional[int] = None
 
 class ChatRequest(BaseModel):
     user_input: str
@@ -65,13 +66,31 @@ class RoleplayHistoryResponse(BaseModel):
     score: Optional[int] = None
     created_at: Optional[str] = None
 
+class KeyMistakeOutput(BaseModel):
+    original: str = Field(min_length=1)
+    corrected: str = Field(min_length=1)
+    explanation: str = Field(min_length=1)
+
+
+class ImprovedSentenceOutput(BaseModel):
+    original: str = Field(min_length=1)
+    improved: str = Field(min_length=1)
+    explanation: str = Field(min_length=1)
+
+
+class VocabularyUpgradeOutput(BaseModel):
+    original: str = Field(min_length=1)
+    upgraded: str = Field(min_length=1)
+    explanation: str = Field(min_length=1)
+
+
 class RoleplayEvaluationOutput(BaseModel):
     grammarScore: int
     clarityScore: int
     naturalnessScore: int
-    keyMistake: dict
-    improvedSentence: dict
-    vocabularyUpgrade: dict
+    keyMistake: KeyMistakeOutput
+    improvedSentence: ImprovedSentenceOutput
+    vocabularyUpgrade: VocabularyUpgradeOutput
 
 class FinishSessionResponse(BaseModel):
     evaluation: RoleplayEvaluationOutput

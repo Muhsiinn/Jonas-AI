@@ -81,14 +81,22 @@ async def chat(state:RoleplayState):
 
     history.append(ChatMessage(role="user", content=user_input))
 
+    system_msg = None
+    if history and history[0].role == "system":
+        system_msg = history[0]
+        recent_messages = history[-10:] if len(history) > 11 else history[1:]
+        messages_list = [system_msg] + recent_messages
+    else:
+        messages_list = history[-10:] if len(history) > 10 else history
+
     messages = [
         {"role": msg.role, "content": msg.content}
-        for msg in history
+        for msg in messages_list
     ]
 
     llm = LLMClient()
-    chat = llm.get_client("tngtech/tng-r1t-chimera:free")
-    response = await chat.ainvoke(messages)
+    chat_client = llm.get_client("tngtech/tng-r1t-chimera:free")
+    response = await chat_client.ainvoke(messages)
 
     cleaned_reply = response.content.strip() if response.content else ""
 

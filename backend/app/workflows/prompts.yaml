@@ -98,6 +98,16 @@ vocab_prompt: |
   4. Prefer nouns, verbs, and everyday expressions.
   5. Keep example sentences short, natural, and clear.
 
+  OUTPUT REQUIREMENTS (STRICT):
+  - Return ONLY valid JSON (no markdown, no commentary).
+  - The JSON MUST match this exact schema:
+    {
+      "vocab": [
+        { "term": "<German>", "meaning": "<English>", "example": "<short German example sentence>" }
+      ]
+    }
+  - Return 6-10 items (not more).
+
 grammar_prompt: |
   You are an experienced German language teacher.
 
@@ -225,5 +235,29 @@ evaluate_roleplay_prompt: |
      - Provide a better alternative
      - Explain why it's better (in English)
 
-  Return the evaluation with grammarScore, clarityScore, naturalnessScore, keyMistake, improvedSentence, and vocabularyUpgrade.
+  OUTPUT REQUIREMENTS (STRICT):
+  - Return ONLY valid JSON.
+  - The JSON MUST match this exact schema (all fields required, all values must be non-empty strings where applicable):
+    {
+      "grammarScore": 0-100,
+      "clarityScore": 0-100,
+      "naturalnessScore": 0-100,
+      "keyMistake": {
+        "original": "<student sentence in German>",
+        "corrected": "<correct German>",
+        "explanation": "<English explanation>"
+      },
+      "improvedSentence": {
+        "original": "<student sentence in German>",
+        "improved": "<more native German>",
+        "explanation": "<English explanation>"
+      },
+      "vocabularyUpgrade": {
+        "original": "<word/phrase the student used>",
+        "upgraded": "<better alternative>",
+        "explanation": "<English explanation>"
+      }
+    }
+
+  If you cannot find a strong example for any of the 3 sections, pick the best available and still fill all fields with meaningful content (do not leave anything blank).
 

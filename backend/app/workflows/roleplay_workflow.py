@@ -7,25 +7,29 @@ from app.schemas.agents_schema import SitationOutput
 from app.models.lesson_model import Lesson
 from app.workflows.nodes.roleplay import chat
 from app.schemas.roleplay_schema import RoleplayState
-from app.workflows.nodes.roleplay import should_continue
-from app.workflows.nodes.end_node import end_check_node
+from app.workflows.nodes.check_db_end_node import check_db_end_status
 from app.workflows.nodes.roleplay_evaluation_node import evaluate_roleplay
+
+def should_evaluate(state: RoleplayState):
+    if state.done:
+        return "evaluate"
+    return "end"
 
 def build_workflow():
     workflow = StateGraph(RoleplayState)
 
     workflow.add_node("chat", chat)
-    workflow.add_node("end_check", end_check_node)
+    workflow.add_node("check_db_end", check_db_end_status)
     workflow.add_node("evaluate", evaluate_roleplay)
 
     workflow.set_entry_point("chat")
-    workflow.add_edge("chat", "end_check")
+    workflow.add_edge("chat", "check_db_end")
     workflow.add_conditional_edges(
-        "end_check",
-        should_continue,
+        "check_db_end",
+        should_evaluate,
         {
-            "continue": END,
-            "end": "evaluate"
+            "evaluate": "evaluate",
+            "end": END
         }
     )
     workflow.add_edge("evaluate", END)

@@ -13,6 +13,7 @@ interface ConversationPanelProps {
   speakingMessageId?: string | null;
   isLoading?: boolean;
   isEvaluating?: boolean;
+  onSpeakText?: (text: string) => void;
 }
 
 export function ConversationPanel({
@@ -23,6 +24,7 @@ export function ConversationPanel({
   speakingMessageId = null,
   isLoading = false,
   isEvaluating = false,
+  onSpeakText,
 }: ConversationPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -39,6 +41,7 @@ export function ConversationPanel({
             message={message}
             onReplay={() => onReplay?.(message.id)}
             speaking={speaking && speakingMessageId === message.id}
+            onSpeakText={onSpeakText}
           />
         ))}
         
