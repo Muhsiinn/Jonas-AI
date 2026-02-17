@@ -43,6 +43,11 @@ import {
   CheckoutSessionResponse,
   SubscriptionStatusResponse,
 } from '@/types/subscription';
+import {
+  WritingGoalResponse,
+  WritingEvaluationRequest,
+  WritingEvaluationResponse,
+} from '@/types/writing';
 import { API_ENDPOINTS } from './endpoints';
 import { getApiBaseUrl } from '@/lib/config/env';
 
@@ -391,6 +396,17 @@ class ApiClient {
   async cancelSubscription(): Promise<{ success: boolean; message: string }> {
     return this.request<{ success: boolean; message: string }>(API_ENDPOINTS.SUBSCRIPTION.CANCEL, {
       method: 'POST',
+    });
+  }
+
+  async createWritingGoal(): Promise<WritingGoalResponse> {
+    return this.request<WritingGoalResponse>(API_ENDPOINTS.WRITING.CREATE_GOAL);
+  }
+
+  async evaluateWriting(data: WritingEvaluationRequest): Promise<WritingEvaluationResponse> {
+    return this.request<WritingEvaluationResponse>(API_ENDPOINTS.WRITING.EVALUATE, {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
   }
 }

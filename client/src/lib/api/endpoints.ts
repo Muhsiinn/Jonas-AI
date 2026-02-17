@@ -49,4 +49,8 @@ export const API_ENDPOINTS = {
     STATUS: '/api/v1/subscription/status',
     CANCEL: '/api/v1/subscription/cancel',
   },
+  WRITING: {
+    CREATE_GOAL: '/api/v1/writing/create_goal',
+    EVALUATE: '/api/v1/writing/evaluate',
+  },
 } as const;

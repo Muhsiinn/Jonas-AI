@@ -10,4 +10,5 @@ export const ROUTES = {
   TEACHER: '/teacher',
   SETTINGS: '/settings',
   SUBSCRIPTION: '/subscription',
+  WRITING: '/writing',
 } as const;

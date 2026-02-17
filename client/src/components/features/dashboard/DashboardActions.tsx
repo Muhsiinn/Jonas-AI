@@ -203,7 +203,7 @@ export function DashboardActions() {
             titleLine1="Write in"
             titleLine2="German"
             completed={activities?.writing_completed ?? false}
-            onClick={() => handlePremiumFeatureClick('/writing')}
+            onClick={() => handlePremiumFeatureClick(ROUTES.WRITING)}
             locked={!isPremium}
             isPremium={isPremium}
           />
