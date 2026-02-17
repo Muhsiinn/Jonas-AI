@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { apiClient } from '@/lib/api/client';
 import { SubscriptionStatusResponse } from '@/types/subscription';
 
@@ -9,7 +9,6 @@ export function useSubscription() {
   const isFetchingRef = useRef(false);
 
   const fetchSubscription = useCallback(async () => {
-    // Prevent concurrent fetches
     if (isFetchingRef.current) {
       return;
     }
@@ -28,10 +27,6 @@ export function useSubscription() {
       isFetchingRef.current = false;
     }
   }, []);
-
-  useEffect(() => {
-    fetchSubscription();
-  }, [fetchSubscription]);
 
   const isPremium = subscription?.plan === 'premium' && 
     (subscription?.status === 'active' || subscription?.status === 'trialing');

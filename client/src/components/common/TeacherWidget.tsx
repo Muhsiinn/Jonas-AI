@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import { MessageCircle, X, Minimize2 } from "lucide-react";
 import { TeacherChat } from "./TeacherChat";
 import { TeacherMessage } from "@/types/teacher";
 import { apiClient } from "@/lib/api";
 
 export function TeacherWidget() {
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<TeacherMessage[]>([]);
@@ -96,12 +98,16 @@ export function TeacherWidget() {
     setIsMinimized(false);
   };
 
+  if (pathname.startsWith("/teacher")) {
+    return null;
+  }
+
   if (!isOpen) {
     return (
       <button
         type="button"
         onClick={handleToggle}
-        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-primary text-white shadow-lg hover:bg-primary-dark transition-all flex items-center justify-center z-50 hover:scale-110"
+        className="fixed bottom-20 right-6 w-14 h-14 rounded-full bg-primary text-white shadow-lg hover:bg-primary-dark transition-all flex items-center justify-center z-50 hover:scale-110"
         title="Open German Teacher"
       >
         <MessageCircle className="w-6 h-6" />
@@ -111,7 +117,7 @@ export function TeacherWidget() {
 
   return (
     <div
-      className={`fixed bottom-6 right-6 z-50 transition-all ${
+      className={`fixed bottom-10 right-6 z-50 transition-all ${
         isMinimized ? "w-80 h-16" : "w-96 h-[600px]"
       }`}
     >

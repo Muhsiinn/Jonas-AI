@@ -39,6 +39,7 @@ export default function ReadLessonPage() {
   const [audioRef] = useState<{ current: HTMLAudioElement | null }>({ current: null });
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const initialLoadRef = useRef(true);
+  const creatingLessonRef = useRef(false);
   const progressDataRef = useRef({
     step: "vocab" as ReadStep,
     readVocab: [] as boolean[],
@@ -146,6 +147,10 @@ export default function ReadLessonPage() {
   }, [loadLessonData]);
 
   const fetchTodayLesson = useCallback(async () => {
+    if (creatingLessonRef.current) {
+      return;
+    }
+    creatingLessonRef.current = true;
     try {
       setLessonLoading(true);
       setLessonError(null);
@@ -178,6 +183,7 @@ export default function ReadLessonPage() {
       setLessonError(err instanceof Error ? err.message : "Failed to load lesson");
     } finally {
       setLessonLoading(false);
+      creatingLessonRef.current = false;
     }
   }, [loadLessonData]);
 

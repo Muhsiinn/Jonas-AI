@@ -26,7 +26,7 @@ export function GlobalNotesWidget() {
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          className="fixed right-0 top-1/2 -translate-y-1/2 z-50 rounded-l-xl border border-r-0 border-cream-dark bg-white px-2 py-4 text-xs font-[family-name:var(--font-dm-sans)] text-gray-700 hover:bg-cream-dark/30 transition-colors [writing-mode:vertical-rl] rotate-180 inline-flex items-center gap-1"
+          className="fixed right-0 top-1/2 -translate-y-1/2 z-50 rounded-r-xl border border-l-0 border-cream-dark bg-white px-2 py-4 text-xs font-[family-name:var(--font-dm-sans)] text-gray-700 hover:bg-cream-dark/30 transition-colors [writing-mode:vertical-rl] rotate-180 inline-flex items-center gap-1"
           aria-label="Open notes"
         >
           <NotebookPen className="w-4 h-4 rotate-90" />

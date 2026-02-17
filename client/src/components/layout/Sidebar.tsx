@@ -2,8 +2,9 @@
 
 import { UserStats } from "@/types/user";
 import { ActivityHeatmapItem, LeaderboardData } from "@/types/api";
-import { Flame, Trophy } from "lucide-react";
+import { Flame, Trophy, Lock } from "lucide-react";
 import { formatDate, getNextUpdateDate } from "@/lib/utils/format";
+import { useSubscription } from "@/contexts/SubscriptionContext";
 
 type SidebarProps = {
   practiceData: ActivityHeatmapItem[];
@@ -13,10 +14,12 @@ type SidebarProps = {
 };
 
 export function Sidebar({ practiceData, leaderboardData, userStats, loading }: SidebarProps) {
+  const { isPremium } = useSubscription();
+
   return (
     <aside className="w-80 bg-white border-r border-cream-dark flex flex-col overflow-y-auto">
       <div className="p-6 space-y-6">
-        <div className="bg-secondary/30 rounded-2xl p-6 shadow-sm border-2 border-secondary/40">
+        <div className="relative bg-secondary/30 rounded-2xl p-6 shadow-sm border-2 border-secondary/40 overflow-hidden">
           <div className="flex items-center gap-2 mb-1">
             <Flame className="w-5 h-5 text-primary" />
             <h2 className="font-[family-name:var(--font-fraunces)] text-lg font-bold text-foreground">
@@ -80,9 +83,32 @@ export function Sidebar({ practiceData, leaderboardData, userStats, loading }: S
               <span className="font-[family-name:var(--font-dm-sans)] text-gray-500">More</span>
             </div>
           </div>
+
+          {!isPremium && (
+            <>
+              <div className="pointer-events-none absolute inset-0 backdrop-blur-sm bg-white/40" />
+              <div className="pointer-events-auto absolute inset-0 flex flex-col items-center justify-center px-4">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-white/70 mb-2 border border-cream-dark">
+                  <Lock className="w-5 h-5 text-primary" />
+                </div>
+                <p className="font-[family-name:var(--font-fraunces)] text-sm font-semibold text-foreground text-center mb-1">
+                  Daily streak is a premium feature
+                </p>
+                <p className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-600 text-center mb-3">
+                  Upgrade to premium to unlock streak tracking and full history.
+                </p>
+                <a
+                  href="/checkout"
+                  className="inline-flex items-center justify-center px-3 py-1.5 rounded-full bg-primary text-white text-xs font-[family-name:var(--font-dm-sans)] hover:bg-primary/90 transition-colors"
+                >
+                  Upgrade to premium
+                </a>
+              </div>
+            </>
+          )}
         </div>
 
-        <div className="bg-primary/20 rounded-2xl p-6 shadow-sm border-2 border-primary/30 flex flex-col">
+        <div className="relative bg-primary/20 rounded-2xl p-6 shadow-sm border-2 border-primary/30 flex flex-col overflow-hidden">
           <div className="flex items-center gap-2 mb-3">
             <Trophy className="w-5 h-5 text-primary" />
             <h2 className="font-[family-name:var(--font-fraunces)] text-lg font-bold text-foreground">
@@ -147,6 +173,29 @@ export function Sidebar({ practiceData, leaderboardData, userStats, loading }: S
             <p className="font-[family-name:var(--font-dm-sans)] text-sm text-gray-500 text-center py-4">
               Complete lessons to join the leaderboard!
             </p>
+          )}
+
+          {!isPremium && !loading && (
+            <>
+              <div className="pointer-events-none absolute inset-0 backdrop-blur-sm bg-white/40" />
+              <div className="pointer-events-auto absolute inset-0 flex flex-col items-center justify-center px-4">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-white/70 mb-2 border border-primary/40">
+                  <Lock className="w-5 h-5 text-primary" />
+                </div>
+                <p className="font-[family-name:var(--font-fraunces)] text-sm font-semibold text-foreground text-center mb-1">
+                  Leaderboard is a premium feature
+                </p>
+                <p className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-600 text-center mb-3">
+                  See your rank and compete with other learners when you upgrade.
+                </p>
+                <a
+                  href="/checkout"
+                  className="inline-flex items-center justify-center px-3 py-1.5 rounded-full bg-primary text-white text-xs font-[family-name:var(--font-dm-sans)] hover:bg-primary/90 transition-colors"
+                >
+                  Upgrade to premium
+                </a>
+              </div>
+            </>
           )}
         </div>
       </div>

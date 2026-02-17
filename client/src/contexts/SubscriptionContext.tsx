@@ -27,16 +27,22 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (isAuthenticated) {
+      const now = Date.now();
+      if (now - lastFetchRef.current > MIN_FETCH_INTERVAL) {
+        lastFetchRef.current = now;
+        refetchRef.current();
+      }
       const handleFocus = () => {
-        const now = Date.now();
-        // Throttle refetch on window focus to prevent excessive polling
-        if (now - lastFetchRef.current > MIN_FETCH_INTERVAL) {
-          lastFetchRef.current = now;
+        const focusNow = Date.now();
+        if (focusNow - lastFetchRef.current > MIN_FETCH_INTERVAL) {
+          lastFetchRef.current = focusNow;
           refetchRef.current();
         }
       };
-      window.addEventListener('focus', handleFocus);
-      return () => window.removeEventListener('focus', handleFocus);
+      window.addEventListener("focus", handleFocus);
+      return () => window.removeEventListener("focus", handleFocus);
+    } else {
+      lastFetchRef.current = 0;
     }
   }, [isAuthenticated]);
 

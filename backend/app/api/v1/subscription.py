@@ -104,10 +104,17 @@ async def cancel_subscription(
     try:
         stripe.Subscription.delete(user.stripe_subscription_id)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(e),
-        )
+        message = str(e)
+        if "No such subscription" not in message:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=message,
+            )
+    user.subscription_plan = "free"
+    user.subscription_status = "free"
+    user.subscription_current_period_end = None
+    user.stripe_subscription_id = None
+    db.commit()
     return {"success": True, "message": "Subscription canceled"}
 
 

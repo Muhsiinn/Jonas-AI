@@ -38,6 +38,8 @@ export default function TeacherPage() {
         } else {
           setSelectedConversationId(history[0].id);
         }
+      } else if (history.length === 0) {
+        setLoadingMessages(false);
       }
     } catch (error) {
       console.error("Failed to fetch history:", error);

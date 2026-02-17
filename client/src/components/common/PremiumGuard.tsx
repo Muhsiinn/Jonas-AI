@@ -16,15 +16,7 @@ export function PremiumGuard({ children, fallback }: PremiumGuardProps) {
   const router = useRouter();
   const [showModal, setShowModal] = useState(true);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!isPremium) {
+  if (!isPremium && !loading) {
     if (fallback) {
       return <>{fallback}</>;
     }
@@ -37,11 +29,11 @@ export function PremiumGuard({ children, fallback }: PremiumGuardProps) {
     return (
       <div className="relative">
         {children}
-        <div 
+        <div
           className="fixed inset-0 bg-black/40 z-40"
           onClick={() => setShowModal(false)}
         />
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center"
           onClick={(e) => {
             if (e.target === e.currentTarget) {

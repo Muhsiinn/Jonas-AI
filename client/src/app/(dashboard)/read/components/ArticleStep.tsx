@@ -308,10 +308,6 @@ export function ArticleStep({
     try {
       const result = await apiClient.explainText(selection.text);
       setExplainResult(result);
-      
-      if (onAddVocab && result.term && result.meaning) {
-        onAddVocab(result);
-      }
     } catch (err) {
       console.error("Failed to explain:", err);
     } finally {
@@ -406,31 +402,31 @@ export function ArticleStep({
               onClick={(e) => e.stopPropagation()}
             >
               {explainResult ? (
-                <div className="space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="font-[family-name:var(--font-fraunces)] text-sm font-bold text-foreground">
-                      {explainResult.term}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => speakText(explainResult.term)}
-                      className="w-7 h-7 rounded-full flex items-center justify-center bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors shrink-0"
-                    >
-                      <Volume2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <p className="font-[family-name:var(--font-dm-sans)] text-sm text-gray-700">
-                    {explainResult.meaning}
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-[family-name:var(--font-fraunces)] text-sm font-bold text-foreground">
+                    {explainResult.term}
                   </p>
-                  {explainResult.example && (
-                    <div className="bg-cream/50 rounded-lg px-2.5 py-1.5 border border-cream-dark/30">
-                      <p className="font-[family-name:var(--font-dm-sans)] text-[10px] text-gray-500 mb-0.5">Example</p>
-                      <p className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-700 italic">
-                        &ldquo;{explainResult.example}&rdquo;
-                      </p>
-                    </div>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => speakText(explainResult.term)}
+                    className="w-7 h-7 rounded-full flex items-center justify-center bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors shrink-0"
+                  >
+                    <Volume2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
+                <p className="font-[family-name:var(--font-dm-sans)] text-sm text-gray-700">
+                  {explainResult.meaning}
+                </p>
+                {explainResult.example && (
+                  <div className="bg-cream/50 rounded-lg px-2.5 py-1.5 border border-cream-dark/30">
+                    <p className="font-[family-name:var(--font-dm-sans)] text-[10px] text-gray-500 mb-0.5">Example</p>
+                    <p className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-700 italic">
+                      &ldquo;{explainResult.example}&rdquo;
+                    </p>
+                  </div>
+                )}
+              </div>
               ) : (
                 <div className="flex items-center gap-2">
                   <p className="font-[family-name:var(--font-dm-sans)] text-xs text-gray-600 truncate max-w-[100px]">
