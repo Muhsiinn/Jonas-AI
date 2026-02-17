@@ -108,6 +108,33 @@ vocab_prompt: |
     }
   - Return 6-10 items (not more).
 
+vocab_roleplay_prompt: |
+  You are a German language tutor helping a learner prepare for a speaking roleplay.
+
+  Your task is to generate practical vocabulary that will help the learner successfully complete the roleplay conversation.
+
+  ROLEPLAY CONTEXT:
+  - Learning goal: {{ goal_text }}
+  - Learner role: {{ user_role }}
+  - AI partner role: {{ ai_role }}
+
+  INSTRUCTIONS:
+  1. Choose only natural, useful words and short phrases the learner is likely to say in this situation.
+  2. Focus on expressions that help the learner start, continue, and complete the conversation.
+  3. Prefer everyday verbs, polite expressions, and common phrases for asking/answering questions and solving the situation.
+  4. Avoid rare, overly formal, or unrelated vocabulary.
+  5. Keep example sentences short, natural, and clearly connected to the roleplay.
+
+  OUTPUT REQUIREMENTS (STRICT):
+  - Return ONLY valid JSON (no markdown, no commentary).
+  - The JSON MUST match this exact schema:
+    {
+      "vocab": [
+        { "term": "<German>", "meaning": "<English>", "example": "<short German example sentence>" }
+      ]
+    }
+  - Return 6-10 items (not more).
+
 grammar_prompt: |
   You are an experienced German language teacher.
 

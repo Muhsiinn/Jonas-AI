@@ -132,8 +132,10 @@ async def goal_maker(
     goal_chat = goal_llm.get_client(MODEL_NAME)
     result = await goal_chat.with_structured_output(Goal).ainvoke(messages)
     
-    vocab_prompt = yaml_prompt.get('vocab_prompt', '')
-    vocab_system_prompt = vocab_prompt.replace("{{ lesson_text }}", text)
+    vocab_prompt = yaml_prompt.get('vocab_roleplay_prompt', '')
+    vocab_system_prompt = vocab_prompt.replace("{{ goal_text }}", result.goal)
+    vocab_system_prompt = vocab_system_prompt.replace("{{ user_role }}", result.user_role)
+    vocab_system_prompt = vocab_system_prompt.replace("{{ ai_role }}", result.ai_role)
     
     vocab_messages = [
         {
