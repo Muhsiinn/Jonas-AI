@@ -7,6 +7,8 @@ from app.models.activity_log_model import ActivityLog
 from app.models.leaderboard_cache_model import LeaderboardCache
 from app.models.goal_model import Roleplay
 from app.models.roleplay_message_model import RoleplayMessage
+from app.models.writng_model import Writing
 
-__all__ = ["User","UserProfile","DailySituation","Lesson","UserStats","ActivityLog","LeaderboardCache","Roleplay","RoleplayMessage"]
+
+__all__ = ["User","UserProfile","DailySituation","Lesson","UserStats","ActivityLog","LeaderboardCache","Roleplay","RoleplayMessage","Writing"]
 

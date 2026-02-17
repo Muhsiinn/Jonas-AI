@@ -1,4 +1,4 @@
-﻿from app.core.llm import LLMClient
+from app.core.llm import LLMClient, MODEL_NAME
 from app.schemas.writing_schema import Vocabs, WritingState
 
 def make_vocab_prompt(goal: str) -> str:
@@ -28,9 +28,9 @@ HARD REQUIREMENTS (non-negotiable):
 - Do NOT include sentences
 
 FIELD RULES:
-- term: German word or short phrase (1–3 words)
+- term: German word or short phrase (1-3 words)
 - meaning: short English translation
-- example: short usage fragment (2–4 words), NOT a sentence
+- example: short usage fragment (2-4 words), NOT a sentence
 
 FAILURE CONDITIONS (avoid these):
 - Returning fewer than 10 vocab items
@@ -46,7 +46,7 @@ Writing goal:
 
 async def make_vocabs(state: WritingState):
     llm = LLMClient()
-    chat = llm.get_client("nvidia/nemotron-3-nano-30b-a3b:free")
+    chat = llm.get_client(MODEL_NAME)
     goal = state.goal
     if not goal:
         return {"vocabs": []}
@@ -64,3 +64,5 @@ async def make_vocabs(state: WritingState):
     return {
         "vocabs": result.vocab,
     }
+
+

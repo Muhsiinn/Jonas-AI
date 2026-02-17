@@ -8,7 +8,7 @@ from datetime import datetime, date, timedelta, timezone
 import json
 import re
 from app.core.utils import open_yaml
-from app.core.llm import LLMClient
+from app.core.llm import LLMClient, MODEL_NAME
 from app.schemas.roleplay_schema import (
     Goal, 
     ChatMessage, 
@@ -128,7 +128,7 @@ async def goal_maker(
     ]
     
     goal_llm = LLMClient()
-    goal_chat = goal_llm.get_client("tngtech/tng-r1t-chimera:free")
+    goal_chat = goal_llm.get_client(MODEL_NAME)
     result = await goal_chat.with_structured_output(Goal).ainvoke(messages)
     
     vocab_prompt = yaml_prompt.get('vocab_prompt', '')
@@ -145,14 +145,14 @@ async def goal_maker(
     try:
         # Use a separate client instance for structured JSON (LLMClient caches internally)
         vocab_llm = LLMClient()
-        vocab_chat = vocab_llm.get_client("nvidia/nemotron-3-nano-30b-a3b:free")
+        vocab_chat = vocab_llm.get_client(MODEL_NAME)
         vocab_result = await vocab_chat.with_structured_output(Vocabs).ainvoke(vocab_messages)
         vocab_items = vocab_result.vocab
     except Exception:
         # Fallback: parse JSON manually (free models can return extra text or truncated JSON)
         try:
             vocab_llm = LLMClient()
-            vocab_chat = vocab_llm.get_client("nvidia/nemotron-3-nano-30b-a3b:free")
+            vocab_chat = vocab_llm.get_client(MODEL_NAME)
             raw = await vocab_chat.ainvoke(vocab_messages)
             raw_text = raw.content if hasattr(raw, "content") else str(raw)
             match = re.search(r"\{[\s\S]*\}", raw_text)

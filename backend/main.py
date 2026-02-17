@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.v1 import auth, users, agents, stats,roleplay,writing 
+from app.api.v1 import auth, users, agents, stats, roleplay, writing, evaluate_writing
 
 app = FastAPI(
     title="Jonas API",
@@ -23,6 +23,7 @@ app.include_router(agents.router, prefix="/api/v1/agents", tags=["agents"])
 app.include_router(stats.router, prefix="/api/v1/stats", tags=["stats"])
 app.include_router(roleplay.router, prefix="/api/v1/roleplay", tags=["roleplay"])
 app.include_router(writing.router, prefix="/api/v1/writing", tags=["writing"])
+app.include_router(evaluate_writing.router, prefix="/api/v1/writing", tags=["writing"])
 
 @app.get("/")
 async def root():

@@ -1,4 +1,4 @@
-from app.core.llm import LLMClient
+from app.core.llm import LLMClient, MODEL_NAME
 from app.schemas.roleplay_schema import RoleplayState, RoleplayEvaluationOutput, ChatMessage
 from app.core.utils import open_yaml
 import json
@@ -31,7 +31,7 @@ async def evaluate_roleplay(state: RoleplayState):
     ]
     
     llm = LLMClient()
-    chat = llm.get_client("tngtech/tng-r1t-chimera:free")
+    chat = llm.get_client(MODEL_NAME)
     
     try:
         # Primary path: enforce schema via structured output
@@ -54,3 +54,5 @@ async def evaluate_roleplay(state: RoleplayState):
         "done": True,
         "reply": state.reply
     }
+
+

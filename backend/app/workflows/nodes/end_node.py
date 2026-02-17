@@ -1,4 +1,4 @@
-from app.core.llm import LLMClient
+from app.core.llm import LLMClient, MODEL_NAME
 from app.schemas.roleplay_schema import RoleplayState
 
 
@@ -16,10 +16,12 @@ Answer ONLY: YES or NO
 """.strip()
 
     llm = LLMClient()
-    chat = llm.get_client("tngtech/tng-r1t-chimera:free")
+    chat = llm.get_client(MODEL_NAME)
     response = await chat.ainvoke([{"role": "user", "content": prompt}])
     result = response.content.strip().upper()
 
     return {
         "done": result.startswith("YES")
     }
+
+

@@ -1,4 +1,4 @@
-from app.core.llm import LLMClient
+from app.core.llm import LLMClient, MODEL_NAME
 from app.schemas.agents_schema import QuestionOutput
 from app.core.utils import open_yaml
 from app.schemas.agents_schema import State
@@ -7,7 +7,7 @@ async def make_question(state:State):
     daily_situation = state["daily_situation"]
     current_user = state["current_user"]
     llm = LLMClient()
-    chat = llm.get_client("arcee-ai/trinity-large-preview:free")
+    chat = llm.get_client(MODEL_NAME)
     yaml_prompts = open_yaml("app/workflows/prompts.yaml")
     user_speaking_level = current_user.profile.user_level_speaking
     user_reading_level = current_user.profile.user_level_reading
@@ -45,3 +45,4 @@ async def make_question(state:State):
     return {
         "questions": result.questions
     }
+

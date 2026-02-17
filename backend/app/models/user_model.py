@@ -22,3 +22,4 @@ class User(Base):
     activity_logs = relationship("ActivityLog",back_populates="user")
     roleplay = relationship('Roleplay',back_populates="user")
     roleplay_messages = relationship("RoleplayMessage", back_populates="user")
+    writing = relationship("Writing",back_populates="user")

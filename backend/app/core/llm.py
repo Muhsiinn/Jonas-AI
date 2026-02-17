@@ -1,6 +1,8 @@
 from langchain_openai import ChatOpenAI
 from app.core.config import settings
 
+MODEL_NAME = "arcee-ai/trinity-large-preview:free"
+
 class LLMClient:
     def __init__(self) -> None:
         self._client : ChatOpenAI | None = None

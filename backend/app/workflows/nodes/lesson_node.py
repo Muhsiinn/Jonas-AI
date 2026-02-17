@@ -1,4 +1,4 @@
-from app.core.llm import LLMClient
+from app.core.llm import LLMClient, MODEL_NAME
 from app.schemas.agents_schema import LessonOutput
 from datetime import timedelta,datetime,date
 from app.core.utils import open_yaml
@@ -13,7 +13,7 @@ async def make_lesson(state:State):
     end = start + timedelta(days=1) 
     
     llm = LLMClient()
-    chat = llm.get_client("nvidia/nemotron-3-nano-30b-a3b:free")
+    chat = llm.get_client(MODEL_NAME)
     yaml_prompts = open_yaml("app/workflows/prompts.yaml")
     user_speaking_level = current_user.profile.user_level_speaking
     user_reading_level = current_user.profile.user_level_reading
@@ -41,3 +41,4 @@ async def make_lesson(state:State):
     result = await chat.with_structured_output(LessonOutput).ainvoke(messages)
  
     return {"lesson":result}
+

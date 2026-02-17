@@ -1,4 +1,4 @@
-from app.core.llm import LLMClient
+from app.core.llm import LLMClient, MODEL_NAME
 from app.core.utils import open_yaml
 from app.schemas.agents_schema import State, GrammarOutput
 
@@ -6,7 +6,7 @@ async def make_grammar(state: State):
     current_user = state["current_user"]
     
     llm = LLMClient()
-    chat = llm.get_client("nvidia/nemotron-3-nano-30b-a3b:free")
+    chat = llm.get_client(MODEL_NAME)
     lesson = " ".join(state['lesson'].paragraphs)
     
     yaml_prompts = open_yaml("app/workflows/prompts.yaml")
@@ -33,3 +33,5 @@ async def make_grammar(state: State):
     return {
         "grammar": result.grammar
     }
+
+

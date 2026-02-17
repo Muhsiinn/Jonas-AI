@@ -1,5 +1,5 @@
-﻿from app.schemas.writing_schema import WritingState, Goal
-from app.core.llm import LLMClient
+from app.schemas.writing_schema import WritingState, Goal
+from app.core.llm import LLMClient, MODEL_NAME
 
 
 def make_prompt(daily_situation: str) -> str:
@@ -25,13 +25,13 @@ Rules:
 
 Examples:
 Daily situation: "I was sick today and missed university"
-Goal: "Schreibe eine formelle E-Mail an deinen Professor und erkl�re, dass du krank warst und den Unterricht verpasst hast."
+Goal: "Schreibe eine formelle E-Mail an deinen Professor und erkl?re, dass du krank warst und den Unterricht verpasst hast."
 
 Daily situation: "I want to reflect on my first week in Austria"
-Goal: "Schreibe einen kurzen Tagebucheintrag �ber deine erste Woche in �sterreich und deine Gef�hle dabei."
+Goal: "Schreibe einen kurzen Tagebucheintrag ?ber deine erste Woche in ?sterreich und deine Gef?hle dabei."
 
 Daily situation: "I need a day off from work tomorrow"
-Goal: "Schreibe eine h�fliche E-Mail an deinen Vorgesetzten und bitte um einen freien Tag f�r morgen."
+Goal: "Schreibe eine h?fliche E-Mail an deinen Vorgesetzten und bitte um einen freien Tag f?r morgen."
 
 Now generate the goal for this daily situation:
 
@@ -50,8 +50,10 @@ async def writing(state: WritingState):
         }
     ]
     llm = LLMClient()
-    chat = llm.get_client("nvidia/nemotron-3-nano-30b-a3b:free")
+    chat = llm.get_client(MODEL_NAME)
 
     result = await chat.with_structured_output(Goal).ainvoke(messages)
 
     return {"goal": result.goal}
+
+

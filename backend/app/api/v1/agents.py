@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException,status,Query
 from fastapi.responses import StreamingResponse, Response
-from app.core.llm import LLMClient
+from app.core.llm import LLMClient, MODEL_NAME
 from app.api.v1.auth import get_current_user
 from app.models.user_model import User
 from app.core.database import get_db
@@ -158,7 +158,7 @@ async def evaluate_lesson(
     ]
 
     llm = LLMClient()
-    chat = llm.get_client("tngtech/tng-r1t-chimera:free")
+    chat = llm.get_client(MODEL_NAME)
 
     result = await chat.with_structured_output(EvaluateLessonOutput).ainvoke(messages)
     
@@ -332,3 +332,4 @@ async def get_lesson_by_id(
             'per_question': lesson.per_question or []
         } if lesson.score is not None else None
     }
+

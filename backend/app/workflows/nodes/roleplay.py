@@ -6,7 +6,7 @@ from app.models.user_model import User
 from sqlalchemy.orm import Session
 from datetime import datetime, date,timedelta,timezone
 from app.core.utils import open_yaml
-from app.core.llm import LLMClient
+from app.core.llm import LLMClient, MODEL_NAME
 from app.models.goal_model import Roleplay
 from app.schemas.roleplay_schema import ChatMessage
 from app.schemas.roleplay_schema import RoleplayState
@@ -95,7 +95,7 @@ async def chat(state:RoleplayState):
     ]
 
     llm = LLMClient()
-    chat_client = llm.get_client("tngtech/tng-r1t-chimera:free")
+    chat_client = llm.get_client(MODEL_NAME)
     response = await chat_client.ainvoke(messages)
 
     cleaned_reply = response.content.strip() if response.content else ""
@@ -114,6 +114,8 @@ def should_continue(state: RoleplayState):
     if state.done:
         return "end"
     return "continue"
+
+
 
 
 
