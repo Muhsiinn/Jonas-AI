@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { GlobalNotesWidget } from "@/components/layout/GlobalNotesWidget";
 
 export default function DashboardLayout({
   children,
@@ -30,5 +31,10 @@ export default function DashboardLayout({
     return null;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <GlobalNotesWidget />
+    </>
+  );
 }

@@ -9,7 +9,6 @@ import { apiClient } from "@/lib/api";
 import { getApiBaseUrl } from "@/lib/config/env";
 import { API_ENDPOINTS } from "@/lib/api";
 import { RoleplayMessage, RoleplaySession, RoleplayHistoryItem, RoleplayEvaluation } from "@/types/roleplay";
-import { RoleplayMessageResponse, RoleplaySessionResponse } from "@/types/api";
 import { formatDate } from "@/lib/utils/format";
 import {
   SessionContextCard,
