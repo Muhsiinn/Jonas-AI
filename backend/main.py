@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.v1 import auth, users, agents, stats, roleplay, teacher, subscription, writing
+from app.api.v1 import auth, users, agents, stats, roleplay, writing, teacher, subscription
 import stripe
 import logging
 
@@ -13,7 +13,6 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Log OpenRouter API key status
 logger.info(f"OpenRouter key loaded: {bool(settings.OPENROUTER_API_KEY)}")
 if settings.OPENROUTER_API_KEY:
     key = settings.OPENROUTER_API_KEY.strip()

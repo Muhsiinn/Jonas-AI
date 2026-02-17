@@ -47,6 +47,7 @@ import {
   WritingGoalResponse,
   WritingEvaluationRequest,
   WritingEvaluationResponse,
+  WritingHistoryItem,
 } from '@/types/writing';
 import { API_ENDPOINTS } from './endpoints';
 import { getApiBaseUrl } from '@/lib/config/env';
@@ -408,6 +409,10 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  async getWritingHistory(): Promise<WritingHistoryItem[]> {
+    return this.request<WritingHistoryItem[]>(API_ENDPOINTS.WRITING.HISTORY);
   }
 }
 

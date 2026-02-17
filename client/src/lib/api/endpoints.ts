@@ -52,5 +52,6 @@ export const API_ENDPOINTS = {
   WRITING: {
     CREATE_GOAL: '/api/v1/writing/create_goal',
     EVALUATE: '/api/v1/writing/evaluate',
+    HISTORY: '/api/v1/writing/history',
   },
 } as const;

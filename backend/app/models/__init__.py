@@ -8,7 +8,21 @@ from app.models.leaderboard_cache_model import LeaderboardCache
 from app.models.goal_model import Roleplay
 from app.models.roleplay_message_model import RoleplayMessage
 from app.models.writng_model import Writing
+from app.models.teacher_model import TeacherConversation, TeacherMessage
 
 
-__all__ = ["User","UserProfile","DailySituation","Lesson","UserStats","ActivityLog","LeaderboardCache","Roleplay","RoleplayMessage","Writing"]
+__all__ = [
+    "User",
+    "UserProfile",
+    "DailySituation",
+    "Lesson",
+    "UserStats",
+    "ActivityLog",
+    "LeaderboardCache",
+    "Roleplay",
+    "RoleplayMessage",
+    "Writing",
+    "TeacherConversation",
+    "TeacherMessage",
+]
 

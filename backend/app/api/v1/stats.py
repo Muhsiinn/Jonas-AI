@@ -10,6 +10,7 @@ from app.models.user_stats_model import UserStats
 from app.models.activity_log_model import ActivityLog
 from app.models.leaderboard_cache_model import LeaderboardCache
 from app.models.lesson_model import Lesson
+from app.models.writng_model import Writing
 from app.api.v1.auth import get_current_user
 from app.api.deps import require_premium
 from app.schemas.stats_schema import UserStatsResponse,ActivityHeatmapItem, LeaderboardResponse, LeaderboardUser, ActivityCompletionResponse
@@ -146,14 +147,13 @@ def get_today_activities(
     
     roleplay_completed = roleplay_activity is not None
     
-    writing_activity = db.query(ActivityLog).filter(
-        ActivityLog.user_id == current_user.id,
-        ActivityLog.activity_type == "writing",
-        ActivityLog.created_at >= start,
-        ActivityLog.created_at < end
+    writing = db.query(Writing).filter(
+        Writing.user_id == current_user.id,
+        Writing.created_at >= start,
+        Writing.created_at < end
     ).first()
     
-    writing_completed = writing_activity is not None
+    writing_completed = bool(writing and writing.user_input and writing.user_input.strip())
     
     return ActivityCompletionResponse(
         lesson_completed=lesson_completed,

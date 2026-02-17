@@ -7,6 +7,7 @@ Create Date: 2026-02-03 15:00:00.000000
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 from sqlalchemy.dialects import postgresql
 
 
@@ -18,10 +19,43 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column('roleplay', sa.Column('completed', sa.Boolean(), nullable=False, server_default=sa.text('false')))
-    op.add_column('roleplay', sa.Column('score', sa.Integer(), nullable=True))
-    op.add_column('roleplay', sa.Column('evaluation', postgresql.JSONB(astext_type=sa.Text()), nullable=True))
-    op.add_column('roleplay', sa.Column('suggested_vocab', postgresql.JSONB(astext_type=sa.Text()), nullable=True))
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    columns = {col["name"] for col in inspector.get_columns("roleplay")}
+
+    if "completed" not in columns:
+        op.add_column(
+            "roleplay",
+            sa.Column(
+                "completed",
+                sa.Boolean(),
+                nullable=False,
+                server_default=sa.text("false"),
+            ),
+        )
+    if "score" not in columns:
+        op.add_column(
+            "roleplay",
+            sa.Column("score", sa.Integer(), nullable=True),
+        )
+    if "evaluation" not in columns:
+        op.add_column(
+            "roleplay",
+            sa.Column(
+                "evaluation",
+                postgresql.JSONB(astext_type=sa.Text()),
+                nullable=True,
+            ),
+        )
+    if "suggested_vocab" not in columns:
+        op.add_column(
+            "roleplay",
+            sa.Column(
+                "suggested_vocab",
+                postgresql.JSONB(astext_type=sa.Text()),
+                nullable=True,
+            ),
+        )
 
 
 def downgrade() -> None:
