@@ -32,7 +32,17 @@ import {
   RoleplayChatResponse,
   RoleplayHistoryResponse,
   RoleplayFinishResponse,
+  TeacherChatRequest,
+  TeacherChatResponse,
+  TeacherMessageResponse,
+  TeacherContextResponse,
+  TeacherConversationResponse,
+  TeacherHistoryResponse,
 } from '@/types/api';
+import {
+  CheckoutSessionResponse,
+  SubscriptionStatusResponse,
+} from '@/types/subscription';
 import { API_ENDPOINTS } from './endpoints';
 import { getApiBaseUrl } from '@/lib/config/env';
 
@@ -88,7 +98,11 @@ class ApiClient {
     if (typeof window === 'undefined') return;
     
     this.removeToken();
-    if (window.location.pathname !== '/login' && window.location.pathname !== '/signup') {
+    if (
+      window.location.pathname !== '/' &&
+      window.location.pathname !== '/login' &&
+      window.location.pathname !== '/signup'
+    ) {
       window.location.href = '/login';
     }
   }
@@ -155,9 +169,22 @@ class ApiClient {
     });
   }
 
+  async getUserProfile(): Promise<UserProfile> {
+    return this.request<UserProfile>(API_ENDPOINTS.USERS.GET_PROFILE, {
+      method: 'GET',
+    });
+  }
+
   async createUserProfile(data: UserProfileRequest): Promise<UserProfile> {
     return this.request<UserProfile>(API_ENDPOINTS.USERS.USER_PROFILE, {
       method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateUserProfile(data: UserProfileRequest): Promise<UserProfile> {
+    return this.request<UserProfile>(API_ENDPOINTS.USERS.UPDATE_PROFILE, {
+      method: 'PUT',
       body: JSON.stringify(data),
     });
   }
@@ -319,6 +346,50 @@ class ApiClient {
 
   async finishRoleplaySession(): Promise<RoleplayFinishResponse> {
     return this.request<RoleplayFinishResponse>(API_ENDPOINTS.ROLEPLAY.FINISH, {
+      method: 'POST',
+    });
+  }
+
+  async getTeacherConversation(): Promise<TeacherConversationResponse> {
+    return this.request<TeacherConversationResponse>(API_ENDPOINTS.TEACHER.CONVERSATION);
+  }
+
+  async getTeacherMessages(): Promise<TeacherMessageResponse[]> {
+    return this.request<TeacherMessageResponse[]>(API_ENDPOINTS.TEACHER.MESSAGES);
+  }
+
+  async sendTeacherMessage(request: TeacherChatRequest): Promise<TeacherChatResponse> {
+    return this.request<TeacherChatResponse>(API_ENDPOINTS.TEACHER.CHAT, {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  async getTeacherContext(): Promise<TeacherContextResponse> {
+    return this.request<TeacherContextResponse>(API_ENDPOINTS.TEACHER.CONTEXT);
+  }
+
+  async getTeacherHistory(): Promise<TeacherHistoryResponse[]> {
+    return this.request<TeacherHistoryResponse[]>(API_ENDPOINTS.TEACHER.HISTORY);
+  }
+
+  async getTeacherMessagesByConversation(conversationId: number): Promise<TeacherMessageResponse[]> {
+    return this.request<TeacherMessageResponse[]>(API_ENDPOINTS.TEACHER.MESSAGES_BY_ID(conversationId));
+  }
+
+  async createCheckoutSession(priceId: string): Promise<CheckoutSessionResponse> {
+    return this.request<CheckoutSessionResponse>(API_ENDPOINTS.SUBSCRIPTION.CHECKOUT, {
+      method: 'POST',
+      body: JSON.stringify({ price_id: priceId }),
+    });
+  }
+
+  async getSubscriptionStatus(): Promise<SubscriptionStatusResponse> {
+    return this.request<SubscriptionStatusResponse>(API_ENDPOINTS.SUBSCRIPTION.STATUS);
+  }
+
+  async cancelSubscription(): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>(API_ENDPOINTS.SUBSCRIPTION.CANCEL, {
       method: 'POST',
     });
   }

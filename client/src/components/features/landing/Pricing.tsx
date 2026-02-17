@@ -1,61 +1,69 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
+import { useAuth } from "@/lib/hooks/useAuth";
+import { useSubscription } from "@/contexts/SubscriptionContext";
 
 const plans = [
   {
     name: "Free",
-    price: "€0",
+    price: "$0",
     period: "forever",
     description: "Perfect for trying out Jonas",
     features: [
-      "1 daily situation",
-      "Basic AI conversations",
-      "Limited feedback",
-      "Progress tracking",
+      "German Teacher AI chatbot",
+      "Basic explanations and examples",
+      "Vocabulary help",
+    ],
+    disabledFeatures: [
+      "Leaderboard",
+      "Daily streaks",
+      "German lessons",
+      "AI Roleplay sessions",
+      "Writing practice",
     ],
     cta: "Get Started",
     variant: "outline" as const,
     popular: false,
   },
   {
-    name: "Pro",
-    price: "€12",
+    name: "Premium",
+    price: "$5",
     period: "per month",
-    description: "For serious learners",
+    description: "Full access to all features",
     features: [
-      "Unlimited situations",
-      "Advanced AI roleplay",
-      "3-layer smart feedback",
-      "Custom lessons from mistakes",
-      "Weekly progress reports",
+      "Everything in Free",
+      "Unlimited German lessons",
+      "AI Roleplay sessions",
+      "Leaderboard & Daily Streaks",
+      "Writing practice",
       "Priority support",
     ],
-    cta: "Start Pro Trial",
+    cta: "Upgrade to Premium",
     variant: "primary" as const,
     popular: true,
-  },
-  {
-    name: "Team",
-    price: "€8",
-    period: "per user/month",
-    description: "For companies & groups",
-    features: [
-      "Everything in Pro",
-      "Team dashboard",
-      "Custom situations",
-      "Admin controls",
-      "Bulk billing",
-      "Dedicated support",
-    ],
-    cta: "Contact Sales",
-    variant: "outline" as const,
-    popular: false,
   },
 ];
 
 export default function Pricing() {
+  const router = useRouter();
+  const { isAuthenticated } = useAuth();
+  const { isPremium } = useSubscription();
+
+  const handlePlanClick = (planName: string) => {
+    if (planName === "Premium") {
+      if (isAuthenticated) {
+        router.push("/checkout");
+      } else {
+        router.push("/signup");
+      }
+    } else {
+      router.push("/signup");
+    }
+  };
+
   return (
     <section id="pricing" className="py-20 px-8 md:px-12 lg:px-16 bg-cream-dark">
       <div className="max-w-7xl mx-auto">
@@ -72,7 +80,7 @@ export default function Pricing() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
           {plans.map((plan, index) => (
             <div
               key={index}
@@ -115,13 +123,33 @@ export default function Pricing() {
                     </span>
                   </li>
                 ))}
+                {plan.disabledFeatures && plan.disabledFeatures.map((feature, i) => (
+                  <li key={`disabled-${i}`} className="flex items-center gap-3 opacity-50">
+                    <div className="w-5 h-5 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
+                      <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </div>
+                    <span className="font-[family-name:var(--font-dm-sans)] text-gray-500 line-through">
+                      {feature}
+                    </span>
+                  </li>
+                ))}
               </ul>
 
-              <Link href="/signup" className="block">
-                <Button variant={plan.variant} className="w-full">
+              {isAuthenticated && plan.name === "Premium" && isPremium ? (
+                <Button variant="outline" className="w-full" disabled>
+                  Current Plan
+                </Button>
+              ) : (
+                <Button
+                  variant={plan.variant}
+                  className="w-full"
+                  onClick={() => handlePlanClick(plan.name)}
+                >
                   {plan.cta}
                 </Button>
-              </Link>
+              )}
             </div>
           ))}
         </div>

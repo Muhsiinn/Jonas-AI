@@ -11,6 +11,7 @@ import { AgentOutput, EvaluateLessonOutput, LessonProgress, LessonHistoryItem } 
 import { LessonStreamEvent } from "@/types/api";
 import { formatDate } from "@/lib/utils/format";
 import { VocabStep, ArticleStep, GrammarStep, QuestionsStep, EvaluationStep } from "./components";
+import { PremiumGuard } from "@/components/common/PremiumGuard";
 
 type ReadStep = "vocab" | "article" | "grammar" | "questions" | "evaluation";
 
@@ -439,7 +440,8 @@ export default function ReadLessonPage() {
   const allQuestionsAnswered = lesson.questions.every((q) => (answers[q.id] ?? "").trim().length > 0);
 
   return (
-    <div className="h-screen bg-cream flex flex-col overflow-hidden">
+    <PremiumGuard>
+      <div className="h-screen bg-cream flex flex-col overflow-hidden">
       <Navbar onLogout={logout} />
 
       <div className="flex-1 flex overflow-hidden">
@@ -726,5 +728,6 @@ export default function ReadLessonPage() {
         </main>
       </div>
     </div>
+    </PremiumGuard>
   );
 }

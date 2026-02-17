@@ -8,7 +8,9 @@ export const API_ENDPOINTS = {
   },
   USERS: {
     PROFILE_EXISTS: '/api/v1/users/profile/exists',
+    GET_PROFILE: '/api/v1/users/profile',
     USER_PROFILE: '/api/v1/users/userprofile',
+    UPDATE_PROFILE: '/api/v1/users/profile',
     DAILY_SITUATION: '/api/v1/users/dailysituation',
   },
   AGENTS: {
@@ -33,5 +35,18 @@ export const API_ENDPOINTS = {
     MESSAGES: '/api/v1/roleplay/messages',
     HISTORY: '/api/v1/roleplay/history',
     FINISH: '/api/v1/roleplay/finish',
+  },
+  TEACHER: {
+    CONVERSATION: '/api/v1/teacher/conversation',
+    MESSAGES: '/api/v1/teacher/messages',
+    MESSAGES_BY_ID: (id: number) => `/api/v1/teacher/messages/${id}`,
+    CHAT: '/api/v1/teacher/chat',
+    CONTEXT: '/api/v1/teacher/context',
+    HISTORY: '/api/v1/teacher/history',
+  },
+  SUBSCRIPTION: {
+    CHECKOUT: '/api/v1/subscription/checkout',
+    STATUS: '/api/v1/subscription/status',
+    CANCEL: '/api/v1/subscription/cancel',
   },
 } as const;

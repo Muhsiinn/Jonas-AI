@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException,status,Query
 from fastapi.responses import StreamingResponse, Response
 from app.core.llm import LLMClient, MODEL_NAME
 from app.api.v1.auth import get_current_user
+from app.api.deps import require_premium
 from app.models.user_model import User
 from app.core.database import get_db
 from app.models.daily_situation_model import DailySituation
@@ -19,7 +20,7 @@ from app.api.v1.stats import update_user_stats
 router  = APIRouter()
 
 @router.get("/create_lesson")
-async def make_lesson(current_user: User = Depends(get_current_user), db:Session = Depends(get_db)): 
+async def make_lesson(current_user: User = Depends(require_premium), db:Session = Depends(get_db)): 
     today = date.today()
     start = datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc)
     end = start + timedelta(days=1) 
@@ -74,49 +75,69 @@ async def make_lesson(current_user: User = Depends(get_current_user), db:Session
     user_profile = current_user.profile
 
     async def event_generator():
-        yield f"data: {json.dumps({'type': 'progress', 'step': 'started', 'message': 'Starting lesson creation...'})}\n\n"
+        try:
+            yield f"data: {json.dumps({'type': 'progress', 'step': 'started', 'message': 'Starting lesson creation...'})}\n\n"
 
-        initial_state = {
-            "db": db,
-            "current_user": current_user,
-            "daily_situation": situation_text,
-            "user_profile": user_profile,
-        } 
+            initial_state = {
+                "db": db,
+                "current_user": current_user,
+                "daily_situation": situation_text,
+                "user_profile": user_profile,
+            } 
 
-        app = build_workflow()
-        final_state = {}
+            app = build_workflow()
+            final_state = {}
 
-        async for event in app.astream(initial_state, stream_mode="updates"):
-            for node_name, node_output in event.items():
-                final_state.update(node_output)
-                
-                if node_name == "lesson_maker":
-                    yield f"data: {json.dumps({'type': 'progress', 'step': 'lesson', 'message': 'Article generated!'})}\n\n"
-                elif node_name == "vocab_maker":
-                    yield f"data: {json.dumps({'type': 'progress', 'step': 'vocab', 'message': 'Vocabulary generated!'})}\n\n"
-                elif node_name == "grammar_maker":
-                    yield f"data: {json.dumps({'type': 'progress', 'step': 'grammar', 'message': 'Grammar extracted!'})}\n\n"
-                elif node_name == "question_maker":
-                    yield f"data: {json.dumps({'type': 'progress', 'step': 'questions', 'message': 'Questions generated!'})}\n\n"
+            async for event in app.astream(initial_state, stream_mode="updates"):
+                for node_name, node_output in event.items():
+                    final_state.update(node_output)
+                    
+                    if node_name == "lesson_maker":
+                        yield f"data: {json.dumps({'type': 'progress', 'step': 'lesson', 'message': 'Article generated!'})}\n\n"
+                    elif node_name == "vocab_maker":
+                        yield f"data: {json.dumps({'type': 'progress', 'step': 'vocab', 'message': 'Vocabulary generated!'})}\n\n"
+                    elif node_name == "grammar_maker":
+                        yield f"data: {json.dumps({'type': 'progress', 'step': 'grammar', 'message': 'Grammar extracted!'})}\n\n"
+                    elif node_name == "question_maker":
+                        yield f"data: {json.dumps({'type': 'progress', 'step': 'questions', 'message': 'Questions generated!'})}\n\n"
 
-        lesson = Lesson(
-            user_id=user_id,
-            vocab=[v.model_dump() for v in final_state['vocabs']],
-            paragraphs=list(final_state['lesson'].paragraphs),
-            grammar=[g.model_dump() for g in final_state['grammar']],
-            questions=[q.model_dump() for q in final_state['questions']],
-            title=final_state['lesson'].title,
-        )
-        db.add(lesson)
-        db.commit()
+            # Check if all required data is present
+            if 'lesson' not in final_state or 'vocabs' not in final_state or 'grammar' not in final_state or 'questions' not in final_state:
+                error_msg = "Lesson creation incomplete. Missing required data."
+                yield f"data: {json.dumps({'type': 'error', 'message': error_msg})}\n\n"
+                return
 
-        complete_data = {
-            'lesson': final_state['lesson'].model_dump(),
-            'vocabs': [v.model_dump() for v in final_state['vocabs']],
-            'grammar': [g.model_dump() for g in final_state['grammar']],
-            'questions': [q.model_dump() for q in final_state['questions']]
-        }
-        yield f"data: {json.dumps({'type': 'complete', 'data': complete_data}, ensure_ascii=False)}\n\n"
+            lesson = Lesson(
+                user_id=user_id,
+                vocab=[v.model_dump() for v in final_state['vocabs']],
+                paragraphs=list(final_state['lesson'].paragraphs),
+                grammar=[g.model_dump() for g in final_state['grammar']],
+                questions=[q.model_dump() for q in final_state['questions']],
+                title=final_state['lesson'].title,
+            )
+            db.add(lesson)
+            db.commit()
+
+            complete_data = {
+                'lesson': final_state['lesson'].model_dump(),
+                'vocabs': [v.model_dump() for v in final_state['vocabs']],
+                'grammar': [g.model_dump() for g in final_state['grammar']],
+                'questions': [q.model_dump() for q in final_state['questions']]
+            }
+            yield f"data: {json.dumps({'type': 'complete', 'data': complete_data}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error creating lesson: {e}", exc_info=True)
+            
+            # Extract meaningful error message
+            error_message = str(e)
+            if "OPENROUTER_API_KEY" in error_message or "OpenRouter" in error_message or "401" in error_message or "Authentication" in error_message:
+                error_message = "OpenRouter API authentication failed. Please check your API key configuration."
+            elif "User not found" in error_message:
+                error_message = "OpenRouter API authentication failed. Please verify your API key is valid and has credits."
+            
+            yield f"data: {json.dumps({'type': 'error', 'message': error_message})}\n\n"
 
     return StreamingResponse(
         event_generator(),
@@ -127,7 +148,7 @@ async def make_lesson(current_user: User = Depends(get_current_user), db:Session
 @router.post("/evaluate_lesson", response_model=EvaluateLessonOutput)
 async def evaluate_lesson(
     request: EvaluateLessonRequest,
-    current_user: User = Depends(get_current_user), 
+    current_user: User = Depends(require_premium), 
     db: Session = Depends(get_db)
 ):
     db_lesson = db.query(Lesson).filter(Lesson.user_id==current_user.id).order_by(Lesson.created_at.desc()).first()
@@ -244,7 +265,7 @@ async def explain_text(
 @router.put("/progress")
 async def update_progress(
     request: UpdateProgressRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_premium),
     db: Session = Depends(get_db)
 ):
     today = date.today()
@@ -274,7 +295,7 @@ async def update_progress(
 
 @router.get("/lessons")
 async def get_lessons_history(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_premium),
     db: Session = Depends(get_db)
 ):
     lessons = db.query(Lesson).filter(
@@ -295,7 +316,7 @@ async def get_lessons_history(
 @router.get("/lessons/{lesson_id}")
 async def get_lesson_by_id(
     lesson_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_premium),
     db: Session = Depends(get_db)
 ):
     lesson = db.query(Lesson).filter(

@@ -1,6 +1,7 @@
-from app.core.database import get_db
+from app.core.database import get_db 
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from app.api.v1.auth import get_current_user
+from app.api.deps import require_premium
 from app.models.lesson_model import Lesson
 from app.models.user_model import User
 from sqlalchemy.orm import Session
@@ -37,7 +38,7 @@ router = APIRouter()
 
 @router.get("/session", response_model=SessionResponse)
 async def get_session(
-    current_user: User = Depends(get_current_user), 
+    current_user: User = Depends(require_premium), 
     db: Session = Depends(get_db)
 ):
     today = date.today()
@@ -79,12 +80,12 @@ async def get_session(
 
 @router.get("/goal", response_model=Goal)
 async def goal_maker(
-    current_user: User = Depends(get_current_user), 
+    current_user: User = Depends(require_premium), 
     db: Session = Depends(get_db)
 ):
     today = date.today()
     start = datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc)
-    end = start + timedelta(days=1)
+    end = start + timedelta(days=1) 
 
     existing_goal = db.query(Roleplay).filter(
         Roleplay.user_id == current_user.id,
@@ -117,15 +118,15 @@ async def goal_maker(
     human_prompt = human_prompt.replace("{{ lesson_body }}", text)
 
     messages = [
-        {
-            "role": "system",
-            "content": system_prompt,
-        },
-        {
-            "role": "user",
-            "content": human_prompt,
-        }
-    ]
+    {
+        "role": "system",
+        "content": system_prompt,
+    },
+    {
+        "role": "user",
+        "content": human_prompt,
+    }
+]
     
     goal_llm = LLMClient()
     goal_chat = goal_llm.get_client(MODEL_NAME)
@@ -178,21 +179,21 @@ async def goal_maker(
         suggested_vocab=suggested_vocab
     )
     db.add(res)
-    db.commit()
+    db.commit() 
     db.refresh(res)
     
-    return result
+    return result 
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(get_current_user), 
+    current_user: User = Depends(require_premium), 
     db: Session = Depends(get_db)
 ):
     today = date.today()
     start = datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc)
-    end = start + timedelta(days=1)
+    end = start + timedelta(days=1) 
 
     lesson = await get_or_create_today_lesson(current_user=current_user, db=db, start=start, end=end)
 
@@ -256,14 +257,14 @@ async def chat(
     initial_state = {
         "lesson_title": lesson_title,
         "lesson_body": lesson_body,
-        "goal_text": goal.goal,
-        "user_role": goal.user_role,
-        "ai_role": goal.ai_role,
-        "chat_history": chat_history,
+            "goal_text": goal.goal,
+            "user_role": goal.user_role,
+            "ai_role": goal.ai_role,
+            "chat_history": chat_history,
         "user_input": request.user_input,
-        "turn_count": 0,
+            "turn_count": 0,
         "goal_id": goal.id
-    }
+        }
     
     app = build_workflow()
     result = await app.ainvoke(initial_state)
@@ -328,7 +329,7 @@ async def chat(
 
 @router.get("/messages", response_model=List[MessageResponse])
 async def get_messages(
-    current_user: User = Depends(get_current_user), 
+    current_user: User = Depends(require_premium), 
     db: Session = Depends(get_db)
 ):
     today = date.today()
@@ -369,7 +370,7 @@ async def get_messages(
 
 @router.get("/history", response_model=List[RoleplayHistoryResponse])
 async def get_roleplay_history(
-    current_user: User = Depends(get_current_user), 
+    current_user: User = Depends(require_premium), 
     db: Session = Depends(get_db)
 ):
     goals = (
@@ -403,7 +404,7 @@ async def get_roleplay_history(
 
 @router.post("/finish", response_model=FinishSessionResponse)
 async def finish_session(
-    current_user: User = Depends(get_current_user), 
+    current_user: User = Depends(require_premium), 
     db: Session = Depends(get_db)
 ):
     today = date.today()

@@ -7,4 +7,7 @@ export const ROUTES = {
   DASHBOARD: '/dashboard',
   READ: '/read',
   ROLEPLAY: '/roleplay',
+  TEACHER: '/teacher',
+  SETTINGS: '/settings',
+  SUBSCRIPTION: '/subscription',
 } as const;

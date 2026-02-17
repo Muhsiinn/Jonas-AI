@@ -100,6 +100,55 @@ export interface RoleplayFinishResponse {
   score: number;
 }
 
+export interface TeacherChatRequest {
+  message: string;
+}
+
+export interface TeacherChatResponse {
+  reply: string;
+}
+
+export interface TeacherMessageResponse {
+  id: number;
+  role: string;
+  content: string;
+  timestamp: string;
+}
+
+export interface TeacherContextResponse {
+  lesson_vocab?: Array<{
+    term: string;
+    meaning: string;
+    example?: string;
+  }> | null;
+  lesson_grammar?: Array<{
+    rule: string;
+    explanation: string;
+    example?: string;
+  }> | null;
+  roleplay_context?: {
+    goal: string;
+    user_role: string;
+    ai_role: string;
+    suggested_vocab?: Array<{
+      term: string;
+      meaning: string;
+    }> | null;
+  } | null;
+  lesson_title?: string | null;
+}
+
+export interface TeacherConversationResponse {
+  id: number;
+  created_at: string;
+}
+
+export interface TeacherHistoryResponse {
+  id: number;
+  created_at: string;
+  message_count: number;
+}
+
 export interface RoleplayEvaluation {
   grammarScore: number;
   clarityScore: number;

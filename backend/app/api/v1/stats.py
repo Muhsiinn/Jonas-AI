@@ -11,6 +11,7 @@ from app.models.activity_log_model import ActivityLog
 from app.models.leaderboard_cache_model import LeaderboardCache
 from app.models.lesson_model import Lesson
 from app.api.v1.auth import get_current_user
+from app.api.deps import require_premium
 from app.schemas.stats_schema import UserStatsResponse,ActivityHeatmapItem, LeaderboardResponse, LeaderboardUser, ActivityCompletionResponse
 
 router = APIRouter()
@@ -39,7 +40,7 @@ def get_my_stats(
 
 @router.get("/activity-heatmap", response_model=List[ActivityHeatmapItem])
 def get_activity_heatmap(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_premium),
     db: Session = Depends(get_db)
 ):
     today = date.today()
@@ -69,7 +70,7 @@ def get_activity_heatmap(
 
 @router.get("/leaderboard", response_model=LeaderboardResponse)
 def get_leaderboard(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_premium),
     db: Session = Depends(get_db)
 ):
     cached = db.query(LeaderboardCache).order_by(LeaderboardCache.rank).limit(50).all()
@@ -112,7 +113,7 @@ def get_leaderboard(
 
 @router.post("/refresh-leaderboard")
 def trigger_leaderboard_refresh(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_premium),
     db: Session = Depends(get_db)
 ):
     refresh_leaderboard_cache(db)

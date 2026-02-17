@@ -113,7 +113,7 @@ async def chat(state:RoleplayState):
 def should_continue(state: RoleplayState):
     if state.done:
         return "end"
-    return "continue"
+        return "continue"
 
 
 

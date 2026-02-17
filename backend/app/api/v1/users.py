@@ -22,8 +22,25 @@ async def check_profile_exists(current_user: User = Depends(get_current_user), d
     profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
     return {"exists": profile is not None}
 
+@router.get("/profile", response_model=UserProfileResponse)
+async def get_user_profile(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found"
+        )
+    return UserProfileResponse.model_validate(profile)
+
 @router.post("/userprofile", response_model=UserProfileResponse)
 async def create_user_profile(request: UserProfileRequest,current_user:User = Depends(get_current_user), db: Session = Depends(get_db)):
+    existing_profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    if existing_profile:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Profile already exists. Use PUT to update."
+        )
+    
     user_profile = UserProfile(
         user_id = current_user.id,
         user_goal = request.user_goal,
@@ -38,6 +55,25 @@ async def create_user_profile(request: UserProfileRequest,current_user:User = De
     db.refresh(user_profile)
     
     return user_profile
+
+@router.put("/profile", response_model=UserProfileResponse)
+async def update_user_profile(request: UserProfileRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found"
+        )
+    
+    profile.user_goal = request.user_goal
+    profile.user_level_speaking = request.user_level_speaking
+    profile.user_level_reading = request.user_level_reading
+    profile.user_region = request.user_region
+    
+    db.commit()
+    db.refresh(profile)
+    
+    return UserProfileResponse.model_validate(profile)
 
 @router.get("/dailysituation",response_model=SituationOutput,status_code=status.HTTP_200_OK)
 async def get_daily_situation(current_user: User = Depends(get_current_user), db:Session = Depends(get_db)):

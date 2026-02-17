@@ -16,6 +16,7 @@ import {
   InputBar,
   EvaluationPanel,
 } from "./components";
+import { PremiumGuard } from "@/components/common/PremiumGuard";
 
 export default function RoleplayPage() {
   const { logout, isAuthenticated, loading } = useAuth();
@@ -393,8 +394,9 @@ export default function RoleplayPage() {
   }
 
   return (
-    <div className="h-screen bg-cream flex flex-col overflow-hidden">
-      <Navbar onLogout={logout} />
+    <PremiumGuard>
+      <div className="h-screen bg-cream flex flex-col overflow-hidden">
+        <Navbar onLogout={logout} />
 
       <div className="flex-1 flex overflow-hidden">
         {!sidebarHidden && (
@@ -526,5 +528,6 @@ export default function RoleplayPage() {
         </main>
       </div>
     </div>
+    </PremiumGuard>
   );
 }

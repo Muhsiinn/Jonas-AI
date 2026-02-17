@@ -5,6 +5,8 @@ export interface User {
   is_active: boolean;
   email_verified: boolean;
   created_at: string;
+  subscription_plan?: "free" | "premium";
+  subscription_status?: "free" | "active" | "canceled" | "past_due" | "trialing";
 }
 
 export interface UserProfileRequest {

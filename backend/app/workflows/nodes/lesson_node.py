@@ -38,7 +38,15 @@ async def make_lesson(state:State):
         }
     ]
 
-    result = await chat.with_structured_output(LessonOutput).ainvoke(messages)
+    try:
+        result = await chat.with_structured_output(LessonOutput).ainvoke(messages)
+    except Exception as e:
+        error_msg = str(e)
+        if "401" in error_msg or "Authentication" in error_msg or "User not found" in error_msg:
+            raise ValueError(
+                "OpenRouter API authentication failed. Please check your OPENROUTER_API_KEY in .env file. "
+                "Get your key from: https://openrouter.ai/keys"
+            ) from e
+        raise
  
     return {"lesson":result}
-
