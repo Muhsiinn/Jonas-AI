@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { apiClient } from '@/lib/api';
-import { UserStats, ActivityHeatmapItem, LeaderboardData } from '@/types/user';
+import { UserStats } from '@/types/user';
+import { ActivityHeatmapItem, LeaderboardData } from '@/types/api';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 
 export function useStats() {

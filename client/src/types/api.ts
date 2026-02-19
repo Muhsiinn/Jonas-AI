@@ -1,5 +1,6 @@
 import { User } from './user';
 import { LessonStreamEvent, AgentOutput } from './lesson';
+import { RoleplayEvaluation } from './roleplay';
 
 export interface LoginRequest {
   email: string;
@@ -149,23 +150,3 @@ export interface TeacherHistoryResponse {
   message_count: number;
 }
 
-export interface RoleplayEvaluation {
-  grammarScore: number;
-  clarityScore: number;
-  naturalnessScore: number;
-  keyMistake: {
-    original: string;
-    corrected: string;
-    explanation: string;
-  };
-  improvedSentence: {
-    original: string;
-    improved: string;
-    explanation: string;
-  };
-  vocabularyUpgrade: {
-    original: string;
-    upgraded: string;
-    explanation: string;
-  };
-}
