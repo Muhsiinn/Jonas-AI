@@ -4,7 +4,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-MODEL_NAME = "arcee-ai/trinity-large-preview:free"
+MODEL_NAME = "poolside/laguna-xs.2:free"
 
 class LLMClient:
     def __init__(self) -> None:
